@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1.7
+# Worker B (foliomind-generation). Build from the repository root:
+#   docker build -f infra/docker/Dockerfile.generation -t foliomind-generation .
+# No browser is installed: Chromium runs in Browserless (Section 26).
+
+ARG NODE_IMAGE=node:24.11.0-bookworm-slim
+ARG TURBO_VERSION=2.11.10
+ARG APP=worker-generation
+
+FROM ${NODE_IMAGE} AS base
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+WORKDIR /repo
+
+FROM base AS prune
+ARG TURBO_VERSION
+ARG APP
+COPY . .
+RUN pnpm dlx turbo@${TURBO_VERSION} prune ${APP} --docker
+
+FROM base AS build
+ARG APP
+COPY --from=prune /repo/out/json/ ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+COPY --from=prune /repo/out/full/ ./
+RUN pnpm turbo run build --filter=${APP}
+
+# Production dependencies only, hoisted so the bundled worker can resolve
+# packages that reach it through shared workspace packages.
+FROM base AS prod-deps
+COPY --from=prune /repo/out/json/ ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --prod --frozen-lockfile --config.node-linker=hoisted
+
+FROM ${NODE_IMAGE} AS runtime
+ARG APP
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=prod-deps --chown=node:node /repo/ ./
+COPY --from=build --chown=node:node /repo/apps/${APP}/dist ./apps/${APP}/dist
+WORKDIR /app/apps/${APP}
+USER node
+CMD ["node", "dist/index.js"]

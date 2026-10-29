@@ -1,0 +1,17 @@
+# Source of truth and agent files are not reformatted
+FolioMind_Project_Blueprint.md
+.claude/
+assets/
+
+# Generated
+pnpm-lock.yaml
+node_modules/
+.next/
+dist/
+.turbo/
+coverage/
+playwright-report/
+test-results/
+apps/web/components/ui/
+apps/web/AGENTS.md
+packages/db/migrations/

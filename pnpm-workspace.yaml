@@ -1,0 +1,18 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10 blocks dependency build scripts unless they are listed here.
+# esbuild's postinstall verifies its platform binary (used by tsx, tsup, Vitest, drizzle-kit).
+onlyBuiltDependencies:
+  - esbuild
+
+# Reviewed and not needed: prebuilt binaries ship through optional dependencies
+# (sharp, unrs-resolver), the native addon has a JavaScript fallback
+# (msgpackr-extract), or the script is a no-op/warning (@google/genai, protobufjs).
+ignoredBuiltDependencies:
+  - "@google/genai"
+  - msgpackr-extract
+  - protobufjs
+  - sharp
+  - unrs-resolver
