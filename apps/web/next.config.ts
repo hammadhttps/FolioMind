@@ -1,5 +1,7 @@
 import path from "node:path";
 import type { NextConfig } from "next";
+// Validates the environment at build and server start (Section 13).
+import "./env";
 
 // Standalone output in a monorepo must trace files from the repository root.
 const repoRoot = path.join(__dirname, "../..");

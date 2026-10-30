@@ -1,6 +1,7 @@
 {
   "name": "foliomind",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.34.9",
   "engines": {
     "node": ">=20.9"
@@ -9,7 +10,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc -p scripts",
     "test": "turbo run test",
     "e2e": "pnpm --filter web exec playwright test",
     "db:generate": "pnpm --filter @foliomind/db exec drizzle-kit generate",
@@ -18,12 +19,23 @@
     "stack:up": "docker compose -f infra/compose.yaml up -d",
     "stack:down": "docker compose -f infra/compose.yaml down",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check:services": "tsx scripts/check-services.ts"
   },
   "devDependencies": {
+    "@foliomind/ai": "workspace:*",
+    "@foliomind/contracts": "workspace:*",
+    "@foliomind/db": "workspace:*",
+    "@foliomind/domain": "workspace:*",
+    "@foliomind/pdf": "workspace:*",
+    "@foliomind/workflows": "workspace:*",
+    "@types/node": "^24.19.2",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "tsx": "^4.23.15",
     "turbo": "^2.11.10",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "uploadthing": "^7.7.4",
+    "zod": "^4.6.7"
   }
 }

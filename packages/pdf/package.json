@@ -17,6 +17,7 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
+    "@foliomind/contracts": "workspace:*",
     "puppeteer-core": "^25.16.0",
     "sanitize-html": "^2.18.1"
   }

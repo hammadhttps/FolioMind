@@ -10,13 +10,30 @@ FolioMind helps students, researchers and independent publishers organize docume
 | `apps/worker-ingestion`  | Worker A: ingestion, web import, notifications, billing sync, cleanup                 |
 | `apps/worker-generation` | Worker B: outline/draft generation and PDF export                                     |
 | `packages/*`             | Shared `@foliomind/*` packages: `db`, `domain`, `contracts`, `ai`, `pdf`, `workflows` |
-| `infra`                  | Dockerfiles and (from Phase 2) the local Docker Compose stack                         |
+| `infra`                  | Dockerfiles and the local Docker Compose stack                                        |
+| `scripts`                | Cross-platform TypeScript scripts (run with tsx)                                      |
+| `docs/setup`             | Setup guides for accounts, keys and local services                                    |
 
 ## Prerequisites
 
 - Node.js 24 LTS (`.nvmrc`); at least 20.9
 - pnpm through Corepack (`corepack enable pnpm`; the version is pinned in `package.json`)
-- Docker Desktop (local services from Phase 2, image builds)
+- Docker Desktop for the local service stack and image builds
+
+## Getting started
+
+```bash
+pnpm install
+cp apps/web/.env.example apps/web/.env.local
+cp apps/worker-ingestion/.env.example apps/worker-ingestion/.env
+cp apps/worker-generation/.env.example apps/worker-generation/.env
+cp infra/.env.example infra/.env
+pnpm stack:up          # Postgres, Redis + Upstash proxy, Inngest Dev Server, Browserless
+pnpm dev               # http://localhost:3000, both workers, Inngest UI at http://localhost:8288
+pnpm check:services    # smoke checks
+```
+
+The defaults work without any third-party keys; services without keys report "not configured". Add keys as described in [docs/setup/third-party-services.md](docs/setup/third-party-services.md).
 
 ## Commands
 
@@ -28,5 +45,6 @@ FolioMind helps students, researchers and independent publishers organize docume
 | `pnpm lint` / `pnpm typecheck` / `pnpm test`    | Quality checks across the monorepo                                                                                                                                  |
 | `pnpm e2e`                                      | Playwright end-to-end tests (first run: `pnpm --filter web exec playwright install chromium`, or set `PLAYWRIGHT_CHANNEL=chrome` to use an installed Google Chrome) |
 | `pnpm format` / `pnpm format:check`             | Prettier                                                                                                                                                            |
+| `pnpm stack:up` / `stack:down`                  | Start or stop the local Docker services                                                                                                                             |
+| `pnpm check:services`                           | Connectivity smoke checks for every service (`--only=postgres,upstash,…`)                                                                                           |
 | `pnpm db:generate` / `db:migrate` / `db:studio` | Drizzle migrations (schema arrives in Phase 4)                                                                                                                      |
-| `pnpm stack:up` / `stack:down`                  | Local Docker services (arrive in Phase 2)                                                                                                                           |

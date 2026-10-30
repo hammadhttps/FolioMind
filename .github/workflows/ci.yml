@@ -33,6 +33,34 @@ jobs:
         env:
           SKIP_ENV_VALIDATION: "1"
 
+  services:
+    name: Local service smoke checks
+    runs-on: ubuntu-latest
+    # Keyless subset of `pnpm check:services` against the Compose stack (Phase 2).
+    env:
+      DIRECT_DATABASE_URL: postgres://foliomind:foliomind@localhost:5433/foliomind
+      UPSTASH_REDIS_REST_URL: http://localhost:8079
+      UPSTASH_REDIS_REST_TOKEN: foliomind-local-dev-token
+      BROWSERLESS_WS_ENDPOINT: ws://localhost:3001
+      BROWSERLESS_TOKEN: foliomind-local-dev-token
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start Postgres, Redis, Upstash proxy and Browserless
+        run: docker compose -f infra/compose.yaml up -d --wait postgres redis upstash-http browserless
+      - run: pnpm check:services --only=postgres,upstash,browserless
+      - name: Service logs
+        if: failure()
+        run: docker compose -f infra/compose.yaml logs --tail=100
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f infra/compose.yaml down -v
+
   docker:
     name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest

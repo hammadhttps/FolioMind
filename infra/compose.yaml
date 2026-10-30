@@ -1,0 +1,153 @@
+# Local FolioMind stack (blueprint Section 13).
+#
+# Day to day:  pnpm stack:up   (infrastructure only)
+#              pnpm dev        (web + both workers on the host, hot reload)
+#
+# Containerized apps (production images, e.g. to test Dockerfiles):
+#   docker compose -f infra/compose.yaml --profile app up --build
+#
+# Ports bind to 127.0.0.1 only. Tokens come from infra/.env (see .env.example);
+# Auth0, UploadThing, Jina, Gemini, Stripe and PushEngage stay external.
+name: foliomind
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17-bookworm
+    environment:
+      POSTGRES_DB: foliomind
+      POSTGRES_USER: foliomind
+      POSTGRES_PASSWORD: foliomind
+    # Host port 5433 by default so a natively installed PostgreSQL on 5432 keeps working.
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foliomind -d foliomind"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4.12-alpine
+    # Rate-limit counters and caches are disposable: no persistence.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Upstash-compatible REST API in front of Redis, so @upstash/redis works offline.
+  upstash-http:
+    image: hiett/serverless-redis-http:0.0.10
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${UPSTASH_LOCAL_TOKEN:-foliomind-local-dev-token}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    ports:
+      - "127.0.0.1:8079:80"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O- --header "Authorization: Bearer $$SRH_TOKEN"
+          --header "Content-Type: application/json" --post-data '["PING"]'
+          http://127.0.0.1:80/ | grep -q PONG
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Inngest Dev Server: UI and API on 8288, Connect gateway on 8289.
+  # Discovery is off because workers register through Connect.
+  inngest:
+    image: inngest/inngest:v1.49.0
+    command: ["inngest", "dev", "--no-discovery"]
+    ports:
+      - "127.0.0.1:8288:8288"
+      - "127.0.0.1:8289:8289"
+
+  # Local Chromium for PDF rendering (production uses Browserless cloud, Section 26).
+  # Used locally under the Browserless license terms.
+  browserless:
+    image: ghcr.io/browserless/chromium:v2.58.0
+    environment:
+      TOKEN: ${BROWSERLESS_LOCAL_TOKEN:-foliomind-local-dev-token}
+      CONCURRENT: "2"
+      QUEUED: "10"
+      TIMEOUT: "60000"
+    ports:
+      - "127.0.0.1:3001:3000"
+    healthcheck:
+      test: ["CMD-SHELL", 'curl -fs -o /dev/null "http://127.0.0.1:3000/active?token=$$TOKEN"']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # --- Applications (profile "app") --------------------------------------
+  web:
+    profiles: [app]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.web
+    env_file:
+      - path: ../apps/web/.env.local
+        required: false
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgres://foliomind:foliomind@postgres:5432/foliomind
+      UPSTASH_REDIS_REST_URL: http://upstash-http:80
+      INNGEST_DEV: "1"
+      INNGEST_BASE_URL: http://inngest:8288
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      upstash-http:
+        condition: service_started
+      inngest:
+        condition: service_started
+
+  worker-ingestion:
+    profiles: [app]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.ingestion
+    env_file:
+      - path: ../apps/worker-ingestion/.env
+        required: false
+    environment: &worker-environment
+      APP_ENV: development
+      DIRECT_DATABASE_URL: postgres://foliomind:foliomind@postgres:5432/foliomind
+      UPSTASH_REDIS_REST_URL: http://upstash-http:80
+      INNGEST_DEV: "1"
+      INNGEST_BASE_URL: http://inngest:8288
+      INNGEST_CONNECT_GATEWAY_URL: ws://inngest:8289/v0/connect
+      BROWSERLESS_WS_ENDPOINT: ws://browserless:3000
+    depends_on: &worker-depends-on
+      postgres:
+        condition: service_healthy
+      upstash-http:
+        condition: service_started
+      inngest:
+        condition: service_started
+      browserless:
+        condition: service_started
+
+  worker-generation:
+    profiles: [app]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.generation
+    env_file:
+      - path: ../apps/worker-generation/.env
+        required: false
+    environment: *worker-environment
+    depends_on: *worker-depends-on
+
+volumes:
+  postgres-data:

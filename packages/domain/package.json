@@ -17,6 +17,9 @@
   },
   "dependencies": {
     "@foliomind/contracts": "workspace:*",
-    "@foliomind/db": "workspace:*"
+    "@foliomind/db": "workspace:*",
+    "@upstash/redis": "^1.40.0",
+    "stripe": "^23.0.1",
+    "zod": "^4.6.7"
   }
 }

@@ -1,17 +1,61 @@
+import { EnvValidationError } from "@foliomind/contracts";
+import { connect, createInngest, createSystemPingFunction } from "@foliomind/workflows";
 import { pino } from "pino";
+import { loadEnv, type WorkerEnv } from "./env";
 
-const logger = pino({ base: { service: "foliomind-ingestion" } });
+const SERVICE = "foliomind-ingestion";
+
+let env: WorkerEnv;
+try {
+  env = loadEnv();
+} catch (error) {
+  if (error instanceof EnvValidationError) {
+    // Variable names only; values never reach the logs.
+    console.error(
+      JSON.stringify({ service: SERVICE, msg: error.message, variables: error.variables }),
+    );
+    process.exit(1);
+  }
+  throw error;
+}
+
+const logger = pino({ base: { service: SERVICE, appEnv: env.appEnv }, level: env.LOG_LEVEL });
+
+const inngest = createInngest({
+  appId: "foliomind-ingestion",
+  isDev: env.INNGEST_DEV === "1",
+  eventKey: env.INNGEST_EVENT_KEY,
+  signingKey: env.INNGEST_SIGNING_KEY,
+  baseUrl: env.INNGEST_BASE_URL,
+  logger,
+});
 
 logger.info("worker booted");
 
-// Phase 2 replaces this keep-alive with the Inngest Connect connection.
-const keepAlive = setInterval(() => {}, 60_000);
+// Phase 6 registers the Section 9 Worker A functions here.
+const connection = await connect({
+  apps: [{ client: inngest, functions: [createSystemPingFunction(inngest)] }],
+  ...(env.WORKER_INSTANCE_ID ? { instanceId: env.WORKER_INSTANCE_ID } : {}),
+  // Shutdown is handled below so it is logged and exits with a clear status.
+  handleShutdownSignals: [],
+});
+logger.info({ connectionId: connection.connectionId }, "connected to Inngest");
 
-function shutdown(signal: NodeJS.Signals) {
+let shuttingDown = false;
+async function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   logger.info({ signal }, "shutting down");
-  clearInterval(keepAlive);
-  process.exit(0);
+  try {
+    // Stops claiming new work and lets in-flight steps finish (Section 9).
+    await connection.close();
+    logger.info("Inngest connection closed");
+    process.exit(0);
+  } catch (error) {
+    logger.error({ err: error }, "shutdown failed");
+    process.exit(1);
+  }
 }
 
-process.once("SIGTERM", shutdown);
-process.once("SIGINT", shutdown);
+process.once("SIGTERM", (signal) => void shutdown(signal));
+process.once("SIGINT", (signal) => void shutdown(signal));
