@@ -18,6 +18,9 @@ jobs:
   verify:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    # No keys in CI; `next typegen` (typecheck) and `next build` both load env.ts.
+    env:
+      SKIP_ENV_VALIDATION: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -30,8 +33,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-        env:
-          SKIP_ENV_VALIDATION: "1"
 
   services:
     name: Local service smoke checks

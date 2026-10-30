@@ -4,6 +4,24 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["APP_ENV", "VERCEL_ENV", "NEXT_PUBLIC_*"],
+      "passThroughEnv": [
+        "LOG_LEVEL",
+        "DATABASE_URL",
+        "DIRECT_DATABASE_URL",
+        "UPSTASH_REDIS_REST_*",
+        "KV_REST_API_*",
+        "RATE_LIMIT_IP_SECRET",
+        "INNGEST_*",
+        "AUTH0_*",
+        "APP_BASE_URL",
+        "UPLOADTHING_TOKEN",
+        "JINA_*",
+        "GEMINI_*",
+        "STRIPE_*",
+        "PUSHENGAGE_*",
+        "BROWSERLESS_*"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
