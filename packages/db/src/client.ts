@@ -16,8 +16,23 @@ export interface CreateDbOptions {
   max?: number;
 }
 
+/**
+ * libpq options that postgres.js would otherwise send to the server as startup
+ * parameters, which Postgres rejects ("unrecognized configuration parameter").
+ * Neon's default connection strings include `channel_binding=require`.
+ */
+const CLIENT_ONLY_PARAMS = ["channel_binding"];
+
+export function withoutClientOnlyParams(url: string): string {
+  const parsed = new URL(url);
+  const present = CLIENT_ONLY_PARAMS.filter((name) => parsed.searchParams.has(name));
+  if (present.length === 0) return url;
+  for (const name of present) parsed.searchParams.delete(name);
+  return parsed.toString();
+}
+
 export function createDb({ url, role, max }: CreateDbOptions) {
-  const client = postgres(url, {
+  const client = postgres(withoutClientOnlyParams(url), {
     max: max ?? (role === "script" ? 2 : 5),
     prepare: role !== "web",
     idle_timeout: 20,

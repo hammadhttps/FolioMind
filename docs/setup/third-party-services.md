@@ -56,7 +56,7 @@ The Inngest integration expects a serve endpoint on Vercel; FolioMind's function
 
 1. Create a Neon project in the region closest to your Vercel functions and Render workers. Keep branch `main` for production and create a `staging` branch (and optionally a `dev` branch).
 2. Enable the `vector` extension (it is created by the first migration in Phase 4; Neon supports it on every plan).
-3. Copy two connection strings per branch:
+3. Copy two connection strings per branch. In Neon's **Connect** dialog use the plain connection string (`postgresql://…`), not the `psql '…'` snippet; the env validation rejects anything that is not a URL. `channel_binding=require` may stay in the string: `createDb` removes it because the driver would send it to the server as an unknown setting.
    - **Pooled** (host contains `-pooler`) → `DATABASE_URL` (web).
    - **Direct** → `DIRECT_DATABASE_URL` (workers and migrations).
 4. Local development uses the Compose Postgres by default (`postgres://foliomind:foliomind@localhost:5433/foliomind`); point the variables at a Neon `dev` branch only if you prefer a cloud database.
