@@ -2,6 +2,7 @@ import type { BookCardProps } from "@/components/foliomind/book-card";
 import type { ProjectRow } from "@/components/foliomind/projects-table";
 import type { BookDetails } from "@/components/foliomind/screens/book-details";
 import type { PublisherProfile } from "@/components/foliomind/screens/publisher-profile";
+import type { SignInMethodView } from "@/components/foliomind/screens/settings";
 import type { SessionUser } from "@/lib/auth/types";
 
 /*
@@ -10,11 +11,20 @@ import type { SessionUser } from "@/lib/auth/types";
  */
 
 export const SAMPLE_USER: SessionUser = {
+  id: "00000000-0000-4000-8000-000000000000",
   name: "Sample Reader",
   email: "sample.reader@example.com",
   picture: null,
+  role: "admin",
   isAdmin: true,
+  emailVerified: true,
+  theme: "light",
 };
+
+export const SAMPLE_SIGN_IN_METHODS: SignInMethodView[] = [
+  { provider: "google-oauth2", connected: true, email: "sample.reader@example.com", primary: true },
+  { provider: "github", connected: false, email: null, primary: false },
+];
 
 export const SAMPLE_BOOKS: BookCardProps[] = [
   {

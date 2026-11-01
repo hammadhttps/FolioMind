@@ -6,14 +6,27 @@ import type { SessionUser } from "@/lib/auth/types";
 import { AppSidebar } from "./app-sidebar";
 import { CommandMenu } from "./command-menu";
 import { SessionUserProvider } from "./session-user";
+import { ThemePreferenceSync } from "./theme-preference";
 import { Topbar } from "./topbar";
 
-/** Workspace shell (Section 19): sidebar, 75px topbar and up to 1600px of content. */
-export function AppShell({ user, children }: { user: SessionUser; children: ReactNode }) {
+/**
+ * Workspace shell (Section 19): sidebar, 75px topbar and up to 1600px of content.
+ * `preview` (the dev gallery) skips loading and saving the account's theme.
+ */
+export function AppShell({
+  user,
+  preview = false,
+  children,
+}: {
+  user: SessionUser;
+  preview?: boolean;
+  children: ReactNode;
+}) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   return (
-    <SessionUserProvider user={user}>
+    <SessionUserProvider user={user} preview={preview}>
+      {preview ? null : <ThemePreferenceSync theme={user.theme} />}
       <SidebarProvider>
         <AppSidebar user={user} />
         <SidebarInset className="min-w-0">

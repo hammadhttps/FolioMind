@@ -3,7 +3,6 @@
 import { Bell, CreditCard, LogOut, Menu, Monitor, Moon, Search, Settings, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useTheme } from "next-themes";
 import { Fragment } from "react";
 import {
   Breadcrumb,
@@ -38,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { SessionUser } from "@/lib/auth/types";
 import { breadcrumbFor } from "@/lib/navigation";
 import { EmptyState } from "./empty-state";
+import { usePersistedTheme } from "./theme-preference";
 import { UserAvatar } from "./user-avatar";
 
 /** Workspace topbar (Section 19): 75px on desktop, 64px at 760px and below. */
@@ -111,7 +111,7 @@ function AppBreadcrumb() {
 }
 
 function ThemeMenu() {
-  const { theme, setTheme } = useTheme();
+  const { theme, choose } = usePersistedTheme();
   return (
     <DropdownMenu>
       <Tooltip>
@@ -132,7 +132,10 @@ function ThemeMenu() {
       </Tooltip>
       <DropdownMenuContent align="end" className="min-w-40">
         <DropdownMenuLabel className="text-xs text-muted-foreground">Appearance</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={theme ?? "light"} onValueChange={setTheme}>
+        <DropdownMenuRadioGroup
+          value={theme ?? "light"}
+          onValueChange={(value) => void choose(value)}
+        >
           <DropdownMenuRadioItem value="light" className="gap-2">
             <Sun className="size-4" aria-hidden="true" />
             Light

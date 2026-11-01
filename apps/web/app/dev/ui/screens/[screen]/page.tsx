@@ -46,7 +46,7 @@ export default async function ScreenPreviewPage({ params }: PageProps<"/dev/ui/s
   // here just as it does behind the session boundary in the (app) layout.
   return (
     <Suspense>
-      <AppShell user={SAMPLE_USER}>
+      <AppShell user={SAMPLE_USER} preview>
         {notice}
         {preview.render()}
       </AppShell>

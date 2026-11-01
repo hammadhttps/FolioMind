@@ -1,29 +1,74 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  profileFormSchema,
+  SIGN_IN_PROVIDER_NAMES,
+  type ProfileFormValues,
+  type SignInProvider,
+} from "@foliomind/contracts";
 import { Link2, LogOut, Monitor, Moon, Sun, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useTheme } from "next-themes";
-import { useSyncExternalStore, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { GitHubMark, GoogleMark } from "@/components/icons/brand";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { updateProfile } from "@/lib/account/actions";
+import { IDENTITY_SUCCESS_CODES, identityMessage } from "@/lib/account/identity-messages";
+import { loginHref } from "@/lib/auth/return-to";
+import { handleRateLimitResponse, showRateLimitToast } from "@/lib/rate-limit-toast";
 import { ComingSoonButton } from "../coming-soon";
 import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
-import { useSessionUser } from "../session-user";
+import { useIsPreview, useSessionUser } from "../session-user";
+import { StatusAlert } from "../status-alert";
+import { usePersistedTheme } from "../theme-preference";
 import { UserAvatar } from "../user-avatar";
 
 const noopSubscribe = () => () => {};
 
+export interface SignInMethodView {
+  provider: SignInProvider;
+  connected: boolean;
+  email: string | null;
+  /** The method the account was created with; it cannot be disconnected. */
+  primary: boolean;
+}
+
 /**
- * Account Settings (Section 20 #13). Theme works now; profile editing,
- * notification preferences and sign-in methods are wired in Phases 4 and 6, and
- * account deletion in Phase 10. Identity fields are managed by Auth0.
+ * Account Settings (Section 20 #13): profile, appearance and sign-in methods
+ * are saved to the account; notification preferences open in Phase 6 and
+ * account deletion in Phase 10. Email and verification are managed by the
+ * sign-in provider.
  */
-export function SettingsScreen() {
+export function SettingsScreen({
+  methods,
+  identityResult,
+}: {
+  methods: SignInMethodView[];
+  /** `?identity=` outcome from the link callback or a reauthentication. */
+  identityResult?: string | null;
+}) {
   const user = useSessionUser();
   return (
     <div className="space-y-6">
@@ -41,11 +86,7 @@ export function SettingsScreen() {
               <p className="text-sm text-muted-foreground">Photo from your sign-in provider</p>
             </div>
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="display-name">Display name</Label>
-            <Input id="display-name" defaultValue={user.name} disabled maxLength={60} />
-            <p className="text-sm text-muted-foreground">Editing your profile opens soon.</p>
-          </div>
+          <ProfileForm displayName={user.name} />
           <div className="grid gap-1.5">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -56,6 +97,7 @@ export function SettingsScreen() {
             />
             <p id="email-help" className="text-sm text-muted-foreground">
               Managed by your sign-in provider.
+              {user.emailVerified ? null : " This address isn't verified yet."}
             </p>
           </div>
         </Panel>
@@ -78,21 +120,7 @@ export function SettingsScreen() {
           </p>
         </Panel>
 
-        <Panel
-          title={
-            <span className="flex items-center gap-2">
-              <Link2 className="size-5" aria-hidden="true" />
-              Sign-in methods
-            </span>
-          }
-          description="Connect another way to sign in to the same account."
-          contentClassName="pt-0"
-        >
-          <ul className="divide-y rounded-lg border">
-            <MethodRow icon={<GoogleMark className="size-5" />} name="Google" />
-            <MethodRow icon={<GitHubMark className="size-5 text-foreground" />} name="GitHub" />
-          </ul>
-        </Panel>
+        <SignInMethodsPanel methods={methods} identityResult={identityResult ?? null} />
 
         <Panel title="Account" contentClassName="space-y-4 pt-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -122,8 +150,70 @@ export function SettingsScreen() {
   );
 }
 
+function ProfileForm({ displayName }: { displayName: string }) {
+  const router = useRouter();
+  const preview = useIsPreview();
+  const [formError, setFormError] = useState<string | null>(null);
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    mode: "onTouched",
+    defaultValues: { displayName },
+  });
+  const error = form.formState.errors.displayName;
+
+  async function onSubmit(values: ProfileFormValues) {
+    setFormError(null);
+    if (preview) return;
+    const result = await updateProfile(values).catch(() => null);
+    if (!result) {
+      setFormError("We couldn't save your profile. Please try again.");
+      return;
+    }
+    if (result.ok) {
+      form.reset(result.data);
+      toast.success("Profile saved.");
+      router.refresh();
+      return;
+    }
+    if (result.code === "rate_limited") showRateLimitToast(result.retryAfterSeconds);
+    const message = result.fieldErrors?.displayName?.[0];
+    if (message) form.setError("displayName", { message }, { shouldFocus: true });
+    else setFormError(result.formError ?? "We couldn't save your profile. Please try again.");
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="grid gap-3">
+      {formError ? <StatusAlert tone="error">{formError}</StatusAlert> : null}
+      <Field data-invalid={error ? true : undefined}>
+        <FieldLabel htmlFor="display-name">Display name</FieldLabel>
+        <Input
+          id="display-name"
+          autoComplete="name"
+          maxLength={60}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "display-name-error" : "display-name-help"}
+          {...form.register("displayName")}
+        />
+        {error ? (
+          <FieldError id="display-name-error">{error.message}</FieldError>
+        ) : (
+          <FieldDescription id="display-name-help">
+            Shown in your workspace. Up to 60 characters.
+          </FieldDescription>
+        )}
+      </Field>
+      <div>
+        <Button type="submit" disabled={form.formState.isSubmitting || !form.formState.isDirty}>
+          {form.formState.isSubmitting ? <Spinner aria-hidden="true" /> : null}
+          Save profile
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function ThemeSetting() {
-  const { theme, setTheme } = useTheme();
+  const { theme, choose } = usePersistedTheme();
   // next-themes reads storage on the client only; render the choice after hydration.
   const mounted = useSyncExternalStore(
     noopSubscribe,
@@ -140,7 +230,7 @@ function ThemeSetting() {
       <legend className="text-sm font-medium">Appearance</legend>
       <RadioGroup
         value={mounted ? theme : undefined}
-        onValueChange={setTheme}
+        onValueChange={(value) => void choose(value)}
         className="grid grid-cols-3 gap-2"
       >
         {options.map((option) => {
@@ -176,14 +266,194 @@ function SwitchRow({ id, label }: { id: string; label: string }) {
   );
 }
 
-function MethodRow({ icon, name }: { icon: ReactNode; name: string }) {
+const PROVIDER_ICONS: Record<SignInProvider, ReactNode> = {
+  "google-oauth2": <GoogleMark className="size-5" />,
+  github: <GitHubMark className="size-5 text-foreground" />,
+};
+
+function SignInMethodsPanel({
+  methods,
+  identityResult,
+}: {
+  methods: SignInMethodView[];
+  identityResult: string | null;
+}) {
+  const user = useSessionUser();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [notice, setNotice] = useState<{ tone: "error"; text: string } | null>(() => {
+    const message = identityMessage(identityResult);
+    return message && !isSuccess(identityResult) ? { tone: "error", text: message } : null;
+  });
+  const [needsReauth, setNeedsReauth] = useState(identityResult === "reauthentication_required");
+  const shown = useRef(false);
+  const primary = methods.find((method) => method.primary)?.provider;
+
+  // The link callback reports its outcome once in the URL; toast a success, then drop it.
+  useEffect(() => {
+    if (shown.current || !identityResult) return;
+    shown.current = true;
+    const message = identityMessage(identityResult);
+    if (message && isSuccess(identityResult)) toast.success(message);
+    router.replace(pathname, { scroll: false });
+  }, [identityResult, pathname, router]);
+
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      {icon}
-      <span className="flex-1 font-medium">{name}</span>
-      <ComingSoonButton size="sm" variant="outline" reason="Connecting sign-in methods opens soon">
-        Connect
-      </ComingSoonButton>
+    <Panel
+      title={
+        <span className="flex items-center gap-2">
+          <Link2 className="size-5" aria-hidden="true" />
+          Sign-in methods
+        </span>
+      }
+      description="Connect another way to sign in to the same account."
+      contentClassName="space-y-3 pt-0"
+    >
+      {notice ? <StatusAlert tone={notice.tone}>{notice.text}</StatusAlert> : null}
+      {needsReauth && primary ? (
+        <StatusAlert
+          tone="warning"
+          action={
+            <Button asChild size="sm" variant="outline">
+              <a
+                href={loginHref({
+                  connection: primary,
+                  returnTo: "/dashboard/settings",
+                  prompt: "login",
+                })}
+              >
+                Sign in again
+              </a>
+            </Button>
+          }
+        >
+          {identityMessage("reauthentication_required")}
+        </StatusAlert>
+      ) : null}
+      {user.emailVerified ? null : (
+        <StatusAlert tone="info">{identityMessage("email_unverified")}</StatusAlert>
+      )}
+      <ul className="divide-y rounded-lg border">
+        {methods.map((method) => (
+          <MethodRow
+            key={method.provider}
+            method={method}
+            canConnect={user.emailVerified}
+            onProblem={(text, code) => {
+              if (code === "reauthentication_required") setNeedsReauth(true);
+              else setNotice({ tone: "error", text });
+            }}
+          />
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
+function isSuccess(code: string | null): boolean {
+  return (IDENTITY_SUCCESS_CODES as readonly string[]).includes(code ?? "");
+}
+
+function MethodRow({
+  method,
+  canConnect,
+  onProblem,
+}: {
+  method: SignInMethodView;
+  canConnect: boolean;
+  onProblem: (message: string, code?: string) => void;
+}) {
+  const router = useRouter();
+  const preview = useIsPreview();
+  const [pending, setPending] = useState(false);
+  const name = SIGN_IN_PROVIDER_NAMES[method.provider];
+
+  async function connect() {
+    if (preview) return;
+    setPending(true);
+    const response = await fetch("/api/account/identities", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ connection: method.provider }),
+    }).catch(() => null);
+    const body = (await response?.json().catch(() => null)) as {
+      redirectUrl?: string;
+      error?: { code: string; message: string };
+    } | null;
+    if (response?.ok && body?.redirectUrl) {
+      window.location.assign(body.redirectUrl);
+      return;
+    }
+    setPending(false);
+    if (response && handleRateLimitResponse(response)) return;
+    onProblem(body?.error?.message ?? identityMessage("link_failed")!, body?.error?.code);
+  }
+
+  async function disconnect() {
+    if (preview) return;
+    setPending(true);
+    const response = await fetch(`/api/account/identities/${method.provider}`, {
+      method: "DELETE",
+    }).catch(() => null);
+    setPending(false);
+    if (response?.ok) {
+      toast.success(identityMessage("unlinked"));
+      router.refresh();
+      return;
+    }
+    if (response && handleRateLimitResponse(response)) return;
+    const body = (await response?.json().catch(() => null)) as {
+      error?: { code: string; message: string };
+    } | null;
+    onProblem(body?.error?.message ?? identityMessage("link_failed")!, body?.error?.code);
+  }
+
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+      {PROVIDER_ICONS[method.provider]}
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 font-medium">
+          {name}
+          {method.connected ? <Badge variant="success">Connected</Badge> : null}
+          {method.primary ? <Badge variant="soft">Primary</Badge> : null}
+        </p>
+        {method.email ? (
+          <p className="truncate text-sm text-muted-foreground">{method.email}</p>
+        ) : null}
+      </div>
+      {!method.connected ? (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => void connect()}
+          disabled={pending || !canConnect}
+        >
+          {pending ? <Spinner aria-hidden="true" /> : null}
+          Connect {name}
+        </Button>
+      ) : method.primary ? null : (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" variant="outline" disabled={pending}>
+              {pending ? <Spinner aria-hidden="true" /> : null}
+              Disconnect
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Disconnect {name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You won&apos;t be able to sign in with {name} until you connect it again. Your
+                account and everything in it stay the same.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep it</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void disconnect()}>Disconnect</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </li>
   );
 }

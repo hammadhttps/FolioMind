@@ -15,7 +15,12 @@ import { PublishingScreen } from "@/components/foliomind/screens/publishing";
 import { ReaderScreen } from "@/components/foliomind/screens/reader";
 import { ResearchWorkspaceScreen } from "@/components/foliomind/screens/research-workspace";
 import { SettingsScreen } from "@/components/foliomind/screens/settings";
-import { SAMPLE_BOOK, SAMPLE_PROJECTS, SAMPLE_PUBLISHER } from "../sample-data";
+import {
+  SAMPLE_BOOK,
+  SAMPLE_PROJECTS,
+  SAMPLE_PUBLISHER,
+  SAMPLE_SIGN_IN_METHODS,
+} from "../sample-data";
 
 interface ScreenPreview {
   title: string;
@@ -41,7 +46,11 @@ export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
   },
   "pdf-studio": { title: "PDF Studio", shell: "app", render: () => <PdfStudioScreen /> },
   publishing: { title: "Publishing", shell: "app", render: () => <PublishingScreen /> },
-  settings: { title: "Settings", shell: "app", render: () => <SettingsScreen /> },
+  settings: {
+    title: "Settings",
+    shell: "app",
+    render: () => <SettingsScreen methods={SAMPLE_SIGN_IN_METHODS} />,
+  },
   billing: { title: "Billing", shell: "app", render: () => <BillingScreen /> },
   "admin-overview": {
     title: "Admin overview",
