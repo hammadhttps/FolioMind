@@ -39,8 +39,8 @@ function createAuth0(): Auth0Client | null {
 
 /**
  * Relative Location header: some SDK error paths (for example a missing state
- * cookie) provide no appBaseUrl, and browsers resolve the path against the
- * callback URL anyway.
+ * cookie) provide no appBaseUrl. The proxy resolves it against the request
+ * before responding.
  */
 function redirectTo(path: string): NextResponse {
   return new NextResponse(null, { status: 307, headers: { location: path } });

@@ -28,6 +28,19 @@ function redirectToSignIn(request: NextRequest, returnTo: string): NextResponse 
   return NextResponse.redirect(url);
 }
 
+/**
+ * The proxy runtime rejects relative redirect URLs (TypeError: Invalid URL), but
+ * onCallback returns relative ones because the SDK gives it no appBaseUrl on
+ * some error paths. Resolve them against the request before returning.
+ */
+function withAbsoluteLocation(response: NextResponse, request: NextRequest): NextResponse {
+  const location = response.headers.get("location");
+  if (location?.startsWith("/")) {
+    response.headers.set("location", new URL(location, request.url).toString());
+  }
+  return response;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl;
 
@@ -55,7 +68,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const authResponse = await auth0.middleware(request);
-  if (pathname.startsWith("/auth/")) return authResponse;
+  if (pathname.startsWith("/auth/")) return withAbsoluteLocation(authResponse, request);
 
   if (requiresSession(pathname) && !(await auth0.getSession(request))) {
     return redirectToSignIn(request, `${pathname}${search}`);

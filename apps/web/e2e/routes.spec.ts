@@ -102,6 +102,18 @@ test.describe("Auth0's hosted login page is never used", () => {
     expect((await request.get("/auth/mfa/authenticators")).status()).toBe(404);
     expect((await request.post("/auth/login")).status()).toBe(404);
   });
+
+  test("callback errors return to /login", async ({ request }) => {
+    test.skip(!process.env.E2E_AUTH0_CONFIGURED, "Auth0 is not configured for this run.");
+    // Without a matching state cookie the SDK reports an error to onCallback.
+    const response = await request.get("/auth/callback?code=invalid&state=invalid", {
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(307);
+    const location = new URL(response.headers().location ?? "", "http://localhost");
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("auth_error")).toBe("failed");
+  });
 });
 
 test.describe("signed-in routes", () => {
