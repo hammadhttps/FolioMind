@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.7
+# One-shot database setup (blueprint Sections 3 and 13): apply migrations, apply
+# the runtime role's grants and upsert the required seed rows. Runs once per
+# deployment, never from every replica. Build from the repository root:
+#   docker build -f infra/docker/Dockerfile.migrate -t foliomind-migrate .
+# Needs DIRECT_DATABASE_URL (migration role) and, to create the runtime role,
+# DATABASE_RUNTIME_PASSWORD.
+
+ARG NODE_IMAGE=node:24.11.0-bookworm-slim
+ARG TURBO_VERSION=2.11.10
+
+FROM ${NODE_IMAGE} AS base
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+WORKDIR /repo
+
+FROM base AS prune
+ARG TURBO_VERSION
+COPY . .
+RUN pnpm dlx turbo@${TURBO_VERSION} prune @foliomind/db --docker
+
+FROM base AS install
+COPY --from=prune /repo/out/json/ ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --filter "@foliomind/db..."
+COPY --from=prune /repo/out/full/ ./
+
+FROM ${NODE_IMAGE} AS runtime
+WORKDIR /app
+COPY --from=install --chown=node:node /repo/ ./
+WORKDIR /app/packages/db
+USER node
+CMD ["node_modules/.bin/tsx", "src/cli.ts", "setup"]

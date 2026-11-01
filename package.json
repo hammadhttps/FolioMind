@@ -15,12 +15,18 @@
     "e2e": "pnpm --filter web exec playwright test",
     "db:generate": "pnpm --filter @foliomind/db exec drizzle-kit generate",
     "db:migrate": "pnpm --filter @foliomind/db exec drizzle-kit migrate",
+    "db:roles": "pnpm --filter @foliomind/db run db roles",
+    "db:seed": "pnpm --filter @foliomind/db run db seed",
+    "db:seed:dev": "pnpm --filter @foliomind/db run db seed:dev",
+    "db:setup": "pnpm --filter @foliomind/db run db setup",
     "db:studio": "pnpm --filter @foliomind/db exec drizzle-kit studio",
     "stack:up": "docker compose -f infra/compose.yaml up -d",
     "stack:down": "docker compose -f infra/compose.yaml down",
+    "stack:migrate": "docker compose -f infra/compose.yaml run --rm --build migrate",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:services": "tsx scripts/check-services.ts"
+    "check:services": "tsx scripts/check-services.ts",
+    "promote-admin": "tsx scripts/promote-admin.ts"
   },
   "devDependencies": {
     "@foliomind/ai": "workspace:*",

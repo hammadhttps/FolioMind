@@ -1,7 +1,11 @@
 # Local FolioMind stack (blueprint Section 13).
 #
 # Day to day:  pnpm stack:up   (infrastructure only)
+#              pnpm db:setup   (migrations, runtime role, required seed; from the host)
 #              pnpm dev        (web + both workers on the host, hot reload)
+#
+# Database setup in a container, as deployments run it (one-shot):
+#   pnpm stack:migrate
 #
 # Containerized apps (production images, e.g. to test Dockerfiles):
 #   docker compose -f infra/compose.yaml --profile app up --build
@@ -88,6 +92,21 @@ services:
       retries: 30
 
   # --- Applications (profile "app") --------------------------------------
+  # One-shot: migrations, runtime role grants and required seed (Section 13).
+  # Runs before the containerized apps, or alone with `pnpm stack:migrate`.
+  migrate:
+    profiles: [app, migrate]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.migrate
+    environment:
+      DIRECT_DATABASE_URL: postgres://foliomind:foliomind@postgres:5432/foliomind
+      DATABASE_RUNTIME_PASSWORD: foliomind_app
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   web:
     profiles: [app]
     build:
@@ -98,13 +117,15 @@ services:
         required: false
     environment:
       APP_ENV: development
-      DATABASE_URL: postgres://foliomind:foliomind@postgres:5432/foliomind
+      DATABASE_URL: postgres://foliomind_app:foliomind_app@postgres:5432/foliomind
       UPSTASH_REDIS_REST_URL: http://upstash-http:80
       INNGEST_DEV: "1"
       INNGEST_BASE_URL: http://inngest:8288
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       upstash-http:
@@ -129,6 +150,8 @@ services:
       INNGEST_CONNECT_GATEWAY_URL: ws://inngest:8289/v0/connect
       BROWSERLESS_WS_ENDPOINT: ws://browserless:3000
     depends_on: &worker-depends-on
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       upstash-http:

@@ -8,10 +8,11 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "postgres": "^3.4.9",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },
@@ -19,6 +20,7 @@
     "@foliomind/contracts": "workspace:*",
     "@foliomind/db": "workspace:*",
     "@upstash/redis": "^1.40.0",
+    "drizzle-orm": "^0.45.4",
     "stripe": "^23.0.1",
     "zod": "^4.6.7"
   }
