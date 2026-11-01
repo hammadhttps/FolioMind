@@ -55,10 +55,10 @@ The Inngest integration expects a serve endpoint on Vercel; FolioMind's function
 ### Neon (PostgreSQL + pgvector)
 
 1. Create a Neon project in the region closest to your Vercel functions and Render workers. Keep branch `main` for production and create a `staging` branch (and optionally a `dev` branch).
-2. Enable the `vector` extension (it is created by the first migration in Phase 4; Neon supports it on every plan).
+2. The `vector` and `pg_trgm` extensions are created by the first migration (Neon supports both on every plan). Apply migrations and create the least-privilege runtime role as described in `database.md`.
 3. Copy two connection strings per branch. In Neon's **Connect** dialog use the plain connection string (`postgresql://…`), not the `psql '…'` snippet; the env validation rejects anything that is not a URL. `channel_binding=require` may stay in the string: `createDb` removes it because the driver would send it to the server as an unknown setting.
-   - **Pooled** (host contains `-pooler`) → `DATABASE_URL` (web).
-   - **Direct** → `DIRECT_DATABASE_URL` (workers and migrations).
+   - **Pooled** (host contains `-pooler`) → `DATABASE_URL` (web). Use the `foliomind_app` runtime role from `database.md`.
+   - **Direct** → `DIRECT_DATABASE_URL` (workers and migrations), as the owner role.
 4. Local development uses the Compose Postgres by default (`postgres://foliomind:foliomind@localhost:5433/foliomind`); point the variables at a Neon `dev` branch only if you prefer a cloud database.
 
 ### Auth0 (sign-in with Google and GitHub)
@@ -66,7 +66,7 @@ The Inngest integration expects a serve endpoint on Vercel; FolioMind's function
 Create one tenant per environment (for example `foliomind-dev`, `foliomind-staging`, `foliomind-prod`). If the tenant came from the Vercel integration, its application already exists: open it and add the localhost URLs from step 1 next to the Vercel ones, plus your production URL (`https://<project>.vercel.app/auth/callback` and the matching logout URL and web origin).
 
 1. **Applications → Create Application → Regular Web Application** named "FolioMind".
-   - Allowed Callback URLs: `http://localhost:3000/auth/callback` (add staging/production URLs later).
+   - Allowed Callback URLs: `http://localhost:3000/auth/callback` and `http://localhost:3000/api/account/identities/callback` (add the staging/production equivalents later).
    - Allowed Logout URLs: `http://localhost:3000`
    - Allowed Web Origins: `http://localhost:3000`
    - Copy **Domain** → `AUTH0_DOMAIN` (without `https://`), **Client ID** → `AUTH0_CLIENT_ID`, **Client Secret** → `AUTH0_CLIENT_SECRET`.
