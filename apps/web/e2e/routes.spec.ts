@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { closeE2eDatabase, createTestUser, deleteTestUsers, hasTestAuth, signInAs } from "./auth";
 import { expectNoHorizontalOverflow, isProductionServer, watchConsole } from "./helpers";
 
 /*
@@ -104,7 +105,7 @@ test.describe("Auth0's hosted login page is never used", () => {
   });
 
   test("callback errors return to /login", async ({ request }) => {
-    test.skip(!process.env.E2E_AUTH0_CONFIGURED, "Auth0 is not configured for this run.");
+    test.skip(!(await hasTestAuth(request)), "The server runs without Auth0 settings.");
     // Without a matching state cookie the SDK reports an error to onCallback.
     const response = await request.get("/auth/callback?code=invalid&state=invalid", {
       maxRedirects: 0,
@@ -117,12 +118,23 @@ test.describe("Auth0's hosted login page is never used", () => {
 });
 
 test.describe("signed-in routes", () => {
-  const storageState = process.env.E2E_STORAGE_STATE;
-  test.skip(
-    !storageState,
-    "Set E2E_STORAGE_STATE to a Playwright storage-state file saved after signing in through Auth0 to test signed-in routes.",
-  );
-  test.use({ storageState: storageState ?? undefined });
+  const created: string[] = [];
+
+  // A real local account with a minted session (e2e/auth.ts).
+  test.beforeEach(async ({ context, request }) => {
+    test.skip(
+      !(await hasTestAuth(request)),
+      "The server runs without Auth0 settings: stop any running dev server so Playwright starts one with the test configuration.",
+    );
+    const user = await createTestUser();
+    created.push(user.id);
+    await signInAs(context, user);
+  });
+
+  test.afterAll(async () => {
+    await deleteTestUsers(created);
+    await closeE2eDatabase();
+  });
 
   for (const path of SIGNED_IN_ROUTES) {
     test(`${path} renders in the workspace shell`, async ({ page }) => {

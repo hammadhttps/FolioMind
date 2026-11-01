@@ -1,5 +1,6 @@
-# First slice of blueprint Section 14. Later phases add migration, integration,
-# end-to-end and deployment jobs; Phase 10 pins actions to commit SHAs.
+# Blueprint Section 14 so far: verify, local service checks, migrations with
+# integration tests, and image builds. Later phases add end-to-end and
+# deployment jobs; Phase 10 pins actions to commit SHAs.
 name: CI
 
 on:
@@ -62,13 +63,57 @@ jobs:
         if: always()
         run: docker compose -f infra/compose.yaml down -v
 
+  integration:
+    name: Migrations and integration tests
+    runs-on: ubuntu-latest
+    # Disposable pgvector Postgres plus the Upstash-compatible proxy (Section 14).
+    env:
+      DIRECT_DATABASE_URL: postgres://foliomind:foliomind@localhost:5433/foliomind
+      TEST_DATABASE_URL: postgres://foliomind:foliomind@localhost:5433/foliomind_test
+      TEST_UPSTASH_REDIS_REST_URL: http://localhost:8079
+      TEST_UPSTASH_REDIS_REST_TOKEN: foliomind-local-dev-token
+      DATABASE_RUNTIME_PASSWORD: ci-runtime-password
+      REQUIRE_TEST_SERVICES: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start Postgres, Redis and the Upstash proxy
+        run: docker compose -f infra/compose.yaml up -d --wait postgres redis upstash-http
+      - name: Apply the committed migrations to an empty database
+        run: pnpm db:migrate
+      - run: pnpm db:roles
+      - run: pnpm db:seed
+      - name: Schema and migrations agree
+        run: |
+          pnpm db:generate --name drift_check
+          if [ -n "$(git status --porcelain packages/db/migrations)" ]; then
+            echo "::error::The Drizzle schema has changes with no migration. Run pnpm db:generate and commit the reviewed SQL."
+            git status --porcelain packages/db/migrations
+            exit 1
+          fi
+      - name: Domain integration tests (Postgres and Redis)
+        run: pnpm --filter @foliomind/domain test
+      - name: Rate-limit tests (Upstash proxy)
+        run: pnpm --filter web exec vitest run lib/rate-limit
+      - name: Service logs
+        if: failure()
+        run: docker compose -f infra/compose.yaml logs --tail=100
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f infra/compose.yaml down -v
+
   docker:
     name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        image: [web, ingestion, generation]
+        image: [web, ingestion, generation, migrate]
     steps:
       - uses: actions/checkout@v5
       - uses: docker/setup-buildx-action@v3
