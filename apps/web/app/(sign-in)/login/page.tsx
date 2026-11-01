@@ -23,7 +23,10 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
           Welcome to FolioMind
         </h1>
         <p className="text-[0.9375rem] text-muted-foreground">
-          Sign in or create your account to save books, upload PDFs and ask cited questions.
+          Sign in to save books, upload PDFs and ask cited questions.{" "}
+          <span className="font-medium text-foreground">
+            New here? Any option below creates your free account.
+          </span>
         </p>
       </div>
       <Suspense fallback={<PanelSkeleton />}>

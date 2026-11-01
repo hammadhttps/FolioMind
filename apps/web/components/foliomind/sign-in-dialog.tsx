@@ -44,7 +44,10 @@ export function SignInDialog({ children, returnTo }: { children: ReactNode; retu
             Welcome to FolioMind
           </DialogTitle>
           <DialogDescription className="text-[0.9375rem] text-muted-foreground">
-            Sign in or create your account to save books, upload PDFs and ask cited questions.
+            Sign in to save books, upload PDFs and ask cited questions.{" "}
+            <span className="font-medium text-foreground">
+              New here? Any option below creates your free account.
+            </span>
           </DialogDescription>
         </DialogHeader>
         {open ? <SignInPanel returnTo={target} /> : null}
