@@ -22,7 +22,7 @@ describe("SignInPanel", () => {
     render(<SignInPanel returnTo="/dashboard/library" />);
     expect(screen.getByRole("link", { name: /Continue with Google/ })).toHaveAttribute(
       "href",
-      "/auth/login?connection=google-oauth2&returnTo=%2Fdashboard%2Flibrary",
+      "/auth/login?connection=google-oauth2&prompt=select_account&returnTo=%2Fdashboard%2Flibrary",
     );
     expect(screen.getByRole("link", { name: /Continue with GitHub/ })).toHaveAttribute(
       "href",

@@ -25,6 +25,7 @@ test("the sign-in dialog sends Google and GitHub straight to their connections",
   expect([google.pathname, github.pathname]).toEqual(["/auth/login", "/auth/login"]);
   expect(google.searchParams.get("connection")).toBe("google-oauth2");
   expect(github.searchParams.get("connection")).toBe("github");
+  expect(google.searchParams.get("prompt")).toBe("select_account");
   expect(google.searchParams.get("returnTo")).toBe("/dashboard");
 
   // Email sign-in happens in FolioMind's own form, not on Auth0's page.
@@ -56,7 +57,7 @@ test("the sign-in page validates email and explains when email sign-in is unavai
   const google = page.getByRole("link", { name: /Continue with Google/ });
   await expect(google).toHaveAttribute(
     "href",
-    "/auth/login?connection=google-oauth2&returnTo=%2Fdashboard%2Flibrary",
+    "/auth/login?connection=google-oauth2&prompt=select_account&returnTo=%2Fdashboard%2Flibrary",
   );
 
   const email = page.getByLabel("Email address");

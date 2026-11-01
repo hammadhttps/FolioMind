@@ -34,7 +34,7 @@ describe("safeReturnTo", () => {
 describe("sign-in links", () => {
   it("sends social sign-in straight to the provider with a sanitized returnTo", () => {
     expect(loginHref({ connection: "google-oauth2", returnTo: "/dashboard?tab=research" })).toBe(
-      "/auth/login?connection=google-oauth2&returnTo=%2Fdashboard%3Ftab%3Dresearch",
+      "/auth/login?connection=google-oauth2&prompt=select_account&returnTo=%2Fdashboard%3Ftab%3Dresearch",
     );
     expect(loginHref({ connection: "github", returnTo: "https://evil.example" })).toBe(
       "/auth/login?connection=github&returnTo=%2Fdashboard",
