@@ -153,6 +153,7 @@ export function DashboardScreen() {
 
         <TabsContent value="research" className="mt-4 space-y-6">
           <PageHeading
+            as="h2"
             title={<span className="text-2xl">Make room for a new connection.</span>}
             description="Compare up to five sources in a workspace and keep your findings together."
             actions={

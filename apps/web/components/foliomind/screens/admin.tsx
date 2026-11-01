@@ -7,19 +7,22 @@ import { MetricCard } from "../metric-card";
 import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
 
-/** Shown to everyone until Phase 4 adds the admin role (the check runs on the server). */
+/** Shown to signed-in users without the admin role; the check runs on the server. */
 export function AdminAccessRequired() {
   return (
-    <EmptyState
-      icon={ShieldCheck}
-      title="Admin access required."
-      description="This area is only available to FolioMind administrators."
-      actions={
-        <Button asChild variant="outline">
-          <Link href="/dashboard">Back to dashboard</Link>
-        </Button>
-      }
-    />
+    <div className="space-y-6">
+      <PageHeading title="Admin" />
+      <EmptyState
+        icon={ShieldCheck}
+        title="Admin access required."
+        description="This area is only available to FolioMind administrators."
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Back to dashboard</Link>
+          </Button>
+        }
+      />
+    </div>
   );
 }
 

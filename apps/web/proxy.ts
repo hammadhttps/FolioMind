@@ -1,20 +1,46 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { cacheKey, createRedis } from "@foliomind/domain";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { appEnv, env } from "@/env";
 import { safeReturnTo } from "@/lib/auth/return-to";
-import { isSocialConnection } from "@/lib/auth/sign-in-errors";
+import { expireSessionCookies, REFUSE_SESSION_HEADER } from "@/lib/auth/session-cookies";
+import { isSocialConnection, type SignInErrorCode } from "@/lib/auth/sign-in-errors";
 import { auth0 } from "@/lib/auth0";
+import { createRateLimiter, ipIdentifier, rateLimitResponse } from "@/lib/rate-limit/core";
 
 /**
- * Next.js 16 proxy (formerly middleware). Mounts the Auth0 routes FolioMind
- * uses, keeps sessions rolling and sends guests on signed-in routes to
- * FolioMind's own sign-in screen (/login), returning to the requested page.
- * Auth0's hosted login page is never used: /auth/login only proceeds for the
- * Google and GitHub connections, which go straight to the provider.
- * Phase 4 adds the global Upstash rate limit in front of it (Section 23).
+ * Next.js 16 proxy (formerly middleware). In order: the global Upstash rate
+ * limit (Section 23), FolioMind's own sign-out route, the Auth0 routes
+ * FolioMind uses with rolling sessions, and the signed-in gate that sends
+ * guests to FolioMind's sign-in screen (/login) with a return path. Auth0's
+ * hosted login page is never used: /auth/login only proceeds for the Google
+ * and GitHub connections, which go straight to the provider.
  */
 const SIGNED_IN_PREFIXES = ["/dashboard", "/read", "/admin"];
 
 /** The only Auth0 SDK routes FolioMind serves; MFA, passkey, passwordless and token routes stay closed. */
 const AUTH_ROUTES = new Set(["/auth/login", "/auth/logout", "/auth/callback", "/auth/profile"]);
+
+/** Reasons `/session/end` signs a user out for, shown on /login. */
+const SIGN_OUT_REASONS = new Set<SignInErrorCode>(["suspended", "deleted"]);
+
+const checkRateLimit = createRateLimiter({
+  redis: createRedis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+    retries: 0,
+  }),
+  keyPrefix: cacheKey(appEnv),
+});
+
+/** Signature verification is the gate for these (Section 23). */
+function isRateLimitExempt(request: NextRequest): boolean {
+  const { pathname } = request.nextUrl;
+  return (
+    pathname === "/api/webhooks/stripe" ||
+    pathname === "/api/inngest" ||
+    (pathname === "/api/uploadthing" && request.headers.has("uploadthing-hook"))
+  );
+}
 
 function requiresSession(pathname: string): boolean {
   return SIGNED_IN_PREFIXES.some(
@@ -41,8 +67,31 @@ function withAbsoluteLocation(response: NextResponse, request: NextRequest): Nex
   return response;
 }
 
-export async function proxy(request: NextRequest) {
+/**
+ * Ends FolioMind's session for a suspended or deleting account and explains
+ * why on /login. The Auth0 session may remain, but the callback refuses these
+ * accounts, so it cannot sign them back in.
+ */
+function endSession(request: NextRequest): NextResponse {
+  const reason = request.nextUrl.searchParams.get("reason");
+  const code = SIGN_OUT_REASONS.has(reason as SignInErrorCode) ? reason : "failed";
+  const response = NextResponse.redirect(new URL(`/login?auth_error=${code}`, request.url));
+  return expireSessionCookies(response, request);
+}
+
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const { pathname, search, searchParams } = request.nextUrl;
+
+  if (!isRateLimitExempt(request)) {
+    const decision = await checkRateLimit(
+      "global",
+      ipIdentifier(request.headers, env.RATE_LIMIT_IP_SECRET),
+      { waitUntil: (promise) => event.waitUntil(promise) },
+    );
+    if (!decision.allowed) return rateLimitResponse(decision);
+  }
+
+  if (pathname === "/session/end") return endSession(request);
 
   if (pathname.startsWith("/auth/")) {
     if (request.method !== "GET" || !AUTH_ROUTES.has(pathname)) {
@@ -68,7 +117,12 @@ export async function proxy(request: NextRequest) {
   }
 
   const authResponse = await auth0.middleware(request);
-  if (pathname.startsWith("/auth/")) return withAbsoluteLocation(authResponse, request);
+  if (pathname.startsWith("/auth/")) {
+    if (authResponse.headers.has(REFUSE_SESSION_HEADER)) {
+      expireSessionCookies(authResponse, request);
+    }
+    return withAbsoluteLocation(authResponse, request);
+  }
 
   if (requiresSession(pathname) && !(await auth0.getSession(request))) {
     return redirectToSignIn(request, `${pathname}${search}`);

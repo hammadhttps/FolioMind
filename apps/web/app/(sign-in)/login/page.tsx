@@ -4,12 +4,12 @@ import { Suspense } from "react";
 import { SignInPanel } from "@/components/foliomind/sign-in-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { safeReturnTo } from "@/lib/auth/return-to";
-import { signInErrorMessage } from "@/lib/auth/sign-in-errors";
+import { authNoticeMessage, signInErrorMessage } from "@/lib/auth/sign-in-errors";
 import { getSessionUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Sign in to FolioMind with Google, GitHub or your email.",
+  description: "Sign in to FolioMind with Google or GitHub.",
   robots: { index: false },
 };
 
@@ -40,7 +40,13 @@ async function LoginForm({ searchParams }: { searchParams: PageProps<"/login">["
   const params = await searchParams;
   const returnTo = safeReturnTo(first(params.returnTo));
   if (await getSessionUser()) redirect(returnTo);
-  return <SignInPanel returnTo={returnTo} error={signInErrorMessage(first(params.auth_error))} />;
+  return (
+    <SignInPanel
+      returnTo={returnTo}
+      error={signInErrorMessage(first(params.auth_error))}
+      notice={authNoticeMessage(first(params.auth_notice))}
+    />
+  );
 }
 
 function PanelSkeleton() {

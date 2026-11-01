@@ -37,18 +37,22 @@ export type SignInConnection = "google-oauth2" | "github";
  * Auth0 SDK login route for a social connection. The connection always skips
  * Auth0's hosted page and goes straight to Google or GitHub. Google gets
  * `prompt=select_account` (Auth0 forwards it), so its account chooser always
- * appears instead of silently reusing the last Google account.
+ * appears instead of silently reusing the last Google account. `prompt: "login"`
+ * forces a fresh sign-in, which Disconnect requires (Section 22 rule 6).
  */
 export function loginHref({
   returnTo,
   connection,
+  prompt,
 }: {
   returnTo?: string;
   connection: SignInConnection;
+  prompt?: "login";
 }): string {
+  const promptValue = prompt ?? (connection === "google-oauth2" ? "select_account" : undefined);
   const params = new URLSearchParams({
     connection,
-    ...(connection === "google-oauth2" ? { prompt: "select_account" } : {}),
+    ...(promptValue ? { prompt: promptValue } : {}),
     returnTo: safeReturnTo(returnTo),
   });
   return `/auth/login?${params.toString()}`;

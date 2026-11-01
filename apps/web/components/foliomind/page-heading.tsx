@@ -3,19 +3,22 @@ import { cn } from "@/lib/utils";
 
 /**
  * Page heading row (Section 19): title, supporting line and right-aligned
- * actions; actions stack under the text at 460px and below.
+ * actions; actions stack under the text at 460px and below. A page has one
+ * `h1`; headings of tabs or sections inside it use `as="h2"`.
  */
 export function PageHeading({
   title,
   description,
   actions,
   eyebrow,
+  as: Heading = "h1",
   className,
 }: {
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   eyebrow?: ReactNode;
+  as?: "h1" | "h2";
   className?: string;
 }) {
   return (
@@ -28,9 +31,9 @@ export function PageHeading({
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="text-[1.75rem]/tight font-semibold tracking-[-0.015em] text-balance md:text-[1.875rem]">
+        <Heading className="text-[1.75rem]/tight font-semibold tracking-[-0.015em] text-balance md:text-[1.875rem]">
           {title}
-        </h1>
+        </Heading>
         {description ? (
           <p className="max-w-2xl text-base text-muted-foreground">{description}</p>
         ) : null}

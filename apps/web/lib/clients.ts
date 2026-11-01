@@ -2,10 +2,11 @@ import "server-only";
 import { createGemini, createJina } from "@foliomind/ai";
 import { requireVariables } from "@foliomind/contracts";
 import { createDb, type DbConnection } from "@foliomind/db";
-import { createPushEngage, createRedis, createStripe } from "@foliomind/domain";
+import { cacheKeys, createPushEngage, createRedis, createStripe } from "@foliomind/domain";
 import { createInngest } from "@foliomind/workflows";
+import { ManagementClient } from "auth0";
 import { UTApi } from "uploadthing/server";
-import { env } from "@/env";
+import { appEnv, env } from "@/env";
 
 /*
  * Lazily created, process-wide service clients for server code. Configuration
@@ -31,6 +32,17 @@ export const getRedis = lazy(() =>
   createRedis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }),
 );
 
+/**
+ * For the request path (rate limits and caches): no retries, so an unreachable
+ * Redis costs one failed attempt before the Section 23 failure policy applies.
+ */
+export const getRequestRedis = lazy(() =>
+  createRedis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN, retries: 0 }),
+);
+
+/** Section 23 cache keys for this environment (`fm:{env}:`). */
+export const getCacheKeys = lazy(() => cacheKeys(appEnv));
+
 /** Sends events only; functions run on the workers (Section 9). */
 export const getInngest = lazy(() =>
   createInngest({
@@ -40,6 +52,24 @@ export const getInngest = lazy(() =>
     baseUrl: env.INNGEST_BASE_URL,
   }),
 );
+
+/**
+ * Auth0 Management API (Section 22 rule 8): the separate Machine-to-Machine
+ * application, used only on the server for linking, unlinking and deleting.
+ */
+export const getAuth0Management = lazy(() => {
+  const { AUTH0_DOMAIN, AUTH0_MGMT_CLIENT_ID, AUTH0_MGMT_CLIENT_SECRET } = requireVariables(
+    env,
+    "Auth0 Management API",
+    ["AUTH0_DOMAIN", "AUTH0_MGMT_CLIENT_ID", "AUTH0_MGMT_CLIENT_SECRET"],
+  );
+  return new ManagementClient({
+    domain: AUTH0_DOMAIN,
+    clientId: AUTH0_MGMT_CLIENT_ID,
+    clientSecret: AUTH0_MGMT_CLIENT_SECRET,
+    telemetry: false,
+  });
+});
 
 export const getUtApi = lazy(() => {
   const { UPLOADTHING_TOKEN } = requireVariables(env, "UploadThing", ["UPLOADTHING_TOKEN"]);

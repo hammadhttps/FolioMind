@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_RETURN_TO, loginHref, safeReturnTo, signInPageHref } from "./return-to";
-import { isSocialConnection, signInErrorMessage, SIGN_IN_ERRORS } from "./sign-in-errors";
+import {
+  AUTH_NOTICES,
+  authNoticeMessage,
+  isSocialConnection,
+  signInErrorMessage,
+  SIGN_IN_ERRORS,
+} from "./sign-in-errors";
 
 describe("safeReturnTo", () => {
   it("keeps local paths with their query and hash", () => {
@@ -41,6 +47,15 @@ describe("sign-in links", () => {
     );
   });
 
+  it("forces a fresh sign-in for reauthentication", () => {
+    expect(
+      loginHref({ connection: "google-oauth2", returnTo: "/dashboard/settings", prompt: "login" }),
+    ).toBe("/auth/login?connection=google-oauth2&prompt=login&returnTo=%2Fdashboard%2Fsettings");
+    expect(loginHref({ connection: "github", prompt: "login" })).toBe(
+      "/auth/login?connection=github&prompt=login&returnTo=%2Fdashboard",
+    );
+  });
+
   it("points everything else at FolioMind's own sign-in page", () => {
     expect(signInPageHref("/read/abc")).toBe("/login?returnTo=%2Fread%2Fabc");
     expect(signInPageHref("//evil.example")).toBe("/login?returnTo=%2Fdashboard");
@@ -59,5 +74,14 @@ describe("sign-in errors", () => {
     expect(signInErrorMessage("cancelled")).toBe(SIGN_IN_ERRORS.cancelled);
     expect(signInErrorMessage("<script>")).toBe(SIGN_IN_ERRORS.failed);
     expect(signInErrorMessage(undefined)).toBeNull();
+    expect(signInErrorMessage("suspended")).toBe(SIGN_IN_ERRORS.suspended);
+  });
+
+  it("shows the Section 22 existing-account notice and nothing for unknown notices", () => {
+    expect(authNoticeMessage("existing-account")).toBe(AUTH_NOTICES["existing-account"]);
+    expect(AUTH_NOTICES["existing-account"]).toBe(
+      "You already have a FolioMind account with this email. Sign in with your original method, then connect this one in Settings.",
+    );
+    expect(authNoticeMessage("anything-else")).toBeNull();
   });
 });

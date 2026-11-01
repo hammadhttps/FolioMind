@@ -21,6 +21,15 @@ const nextConfig: NextConfig = {
   ],
   cacheComponents: true,
   partialPrefetching: true,
+  // Provider profile pictures copied on first sign-in (Section 22 rule 7).
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "s.gravatar.com" },
+      { protocol: "https", hostname: "cdn.auth0.com" },
+    ],
+  },
   turbopack: {
     root: repoRoot,
     rules: {

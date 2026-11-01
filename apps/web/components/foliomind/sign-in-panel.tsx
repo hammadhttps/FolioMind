@@ -31,7 +31,15 @@ const noopSubscribe = () => () => {};
  * hosted login page is never shown. Used by the sign-in dialog and the /login
  * page.
  */
-export function SignInPanel({ returnTo, error }: { returnTo: string; error?: string | null }) {
+export function SignInPanel({
+  returnTo,
+  error,
+  notice,
+}: {
+  returnTo: string;
+  error?: string | null;
+  notice?: string | null;
+}) {
   const [pending, setPending] = useState<SignInConnection | null>(null);
   const lastUsed = useSyncExternalStore(noopSubscribe, readLastUsed, () => null);
 
@@ -50,6 +58,7 @@ export function SignInPanel({ returnTo, error }: { returnTo: string; error?: str
   return (
     <div className="grid gap-5">
       {error ? <StatusAlert tone="error">{error}</StatusAlert> : null}
+      {notice ? <StatusAlert tone="info">{notice}</StatusAlert> : null}
 
       <div className="grid gap-3">
         <SocialButton
