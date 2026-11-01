@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./search-params": "./src/search-params.ts",
+    "./forms": "./src/forms.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
