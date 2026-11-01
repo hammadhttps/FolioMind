@@ -28,8 +28,8 @@ test("the sign-in dialog sends Google and GitHub straight to their connections",
   expect(google.searchParams.get("prompt")).toBe("select_account");
   expect(google.searchParams.get("returnTo")).toBe("/dashboard");
 
-  // Email sign-in happens in FolioMind's own form, not on Auth0's page.
-  await expect(dialog.getByLabel("Email address")).toBeVisible();
+  // Google and GitHub are the only ways in; there is no email or password form.
+  await expect(dialog.getByRole("textbox")).toHaveCount(0);
   for (const link of await dialog.getByRole("link").all()) {
     const target = (await link.getAttribute("href")) ?? "";
     if (target.startsWith("/auth/login"))
@@ -39,7 +39,6 @@ test("the sign-in dialog sends Google and GitHub straight to their connections",
   for (const control of [
     dialog.getByRole("link", { name: /Continue with Google/ }),
     dialog.getByRole("link", { name: /Continue with GitHub/ }),
-    dialog.getByRole("button", { name: "Email me a sign-in code" }),
   ]) {
     const box = await control.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
@@ -49,27 +48,18 @@ test("the sign-in dialog sends Google and GitHub straight to their connections",
   await expect(dialog).toBeHidden();
 });
 
-test("the sign-in page validates email and explains when email sign-in is unavailable", async ({
-  page,
-}) => {
+test("the sign-in page keeps the requested page for after sign-in", async ({ page }) => {
   await page.goto("/login?returnTo=%2Fdashboard%2Flibrary");
   await expect(page.getByRole("heading", { level: 1, name: "Welcome to FolioMind" })).toBeVisible();
-  const google = page.getByRole("link", { name: /Continue with Google/ });
-  await expect(google).toHaveAttribute(
+  await expect(page.getByRole("link", { name: /Continue with Google/ })).toHaveAttribute(
     "href",
     "/auth/login?connection=google-oauth2&prompt=select_account&returnTo=%2Fdashboard%2Flibrary",
   );
-
-  const email = page.getByLabel("Email address");
-  await email.fill("not-an-email");
-  await page.getByRole("button", { name: "Email me a sign-in code" }).click();
-  await expect(page.getByText("Enter a valid email address.")).toBeVisible();
-
-  // No Auth0 keys in local and CI runs, so the server reports email sign-in as unavailable.
-  test.skip(Boolean(process.env.E2E_AUTH0_CONFIGURED), "Auth0 is configured for this run.");
-  await email.fill("reader@example.com");
-  await page.getByRole("button", { name: "Email me a sign-in code" }).click();
-  await expect(page.getByText(/Email sign-in isn't available right now/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Continue with GitHub/ })).toHaveAttribute(
+    "href",
+    "/auth/login?connection=github&returnTo=%2Fdashboard%2Flibrary",
+  );
+  await expect(page.getByRole("main").getByRole("textbox")).toHaveCount(0);
 });
 
 test("the sign-in page shows callback errors from the URL", async ({ page }) => {

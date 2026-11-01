@@ -1,6 +1,6 @@
 "use client";
 
-import { Link2, LogOut, Mail, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { Link2, LogOut, Monitor, Moon, Sun, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore, type ReactNode } from "react";
@@ -91,7 +91,6 @@ export function SettingsScreen() {
           <ul className="divide-y rounded-lg border">
             <MethodRow icon={<GoogleMark className="size-5" />} name="Google" />
             <MethodRow icon={<GitHubMark className="size-5 text-foreground" />} name="GitHub" />
-            <MethodRow icon={<Mail className="size-5" aria-hidden="true" />} name="Email code" />
           </ul>
         </Panel>
 

@@ -1,9 +1,8 @@
 # Auth0 sign-in setup
 
-FolioMind uses its own sign-in screen: the `/login` page and the sign-in dialog share one panel with **Continue with Google**, **Continue with GitHub** and **email codes**. Auth0's hosted Universal Login page is never part of the flow:
+FolioMind uses its own sign-in screen: the `/login` page and the sign-in dialog share one panel with **Continue with Google** and **Continue with GitHub**. The first sign-in creates the account, so there is no separate registration, and there is no email or password sign-in. Auth0's hosted Universal Login page is never part of the flow:
 
-- Google and GitHub buttons send `connection=google-oauth2` or `connection=github`, so Auth0 forwards the user straight to the provider.
-- Email sign-in uses Auth0 Passwordless: FolioMind's server asks Auth0 to email a 6-digit code, and the code is entered on FolioMind's screen. Requests are rate-limited per visitor and per address (Upstash).
+- Google and GitHub buttons send `connection=google-oauth2` or `connection=github`, so Auth0 forwards the user straight to the provider. Google links also send `prompt=select_account`, so Google always shows its account chooser.
 - `/auth/login` without one of those two connections redirects to `/login`. Guests on signed-in pages go to `/login?returnTo=…`. Sign-in errors return to `/login?auth_error=…`.
 - Only `GET /auth/login`, `/auth/logout`, `/auth/callback` and `/auth/profile` are served; the SDK's other routes (MFA, passkeys, passwordless HTTP endpoints, access tokens) return 404.
 
@@ -23,37 +22,15 @@ Do the steps below in each Auth0 tenant (development, staging, production). If t
 1. Turn it on for the FolioMind application.
 2. Tick the **Email address** attribute so GitHub users who hide their public email can still sign in.
 
-If GitHub stays off, the GitHub button leads to an Auth0 error page, so either enable it or tell your developer to hide the button.
+If GitHub stays off, the GitHub button leads back to `/login` with "We couldn't sign you in.", so either enable it or tell your developer to hide the button.
 
-## 3. Email codes (Passwordless)
+## 3. Turn off the other connections
 
-1. **Authentication → Passwordless → Email**: turn it on.
-   - **From**: an address on your domain, for example `FolioMind <no-reply@your-domain>`.
-   - **Subject**: `Your FolioMind sign-in code`.
-   - **OTP Length**: 6. **OTP Expiry**: 300 seconds (the default).
-   - **Disable Sign Ups**: leave off, so new readers can create an account with their email.
-   - **Body**: Auth0 replaces `{{ code }}` with the code. A minimal branded template:
+FolioMind only offers Google and GitHub, so no other way in should stay open on the Auth0 side:
 
-     ```html
-     <div
-       style="font-family: Inter, Arial, sans-serif; color: #0f172a; max-width: 480px; margin: 0 auto; padding: 24px"
-     >
-       <p style="font-size: 18px; font-weight: 700; color: #4338ca">FolioMind</p>
-       <p>Use this code to sign in to FolioMind:</p>
-       <p
-         style="font-size: 32px; font-weight: 700; letter-spacing: 8px; background: #eef2ff; color: #3730a3; padding: 16px; text-align: center; border-radius: 10px"
-       >
-         {{ code }}
-       </p>
-       <p style="color: #475569">
-         It expires in 5 minutes. If you didn't try to sign in, you can ignore this email.
-       </p>
-     </div>
-     ```
-
-   - **Applications** tab: turn it on for the FolioMind application.
-2. **Applications → Applications → FolioMind → Settings → Advanced Settings → Grant Types**: tick **Passwordless OTP**, then **Save**. Without it, codes are sent but cannot be verified.
-3. **Branding → Email Provider**: connect a real provider (SMTP, SendGrid, Mailgun, Amazon SES, …) before launch. Auth0's built-in provider is for testing and sends only a small number of emails.
+1. **Authentication → Database → Username-Password-Authentication → Applications**: turn the FolioMind application off.
+2. **Authentication → Passwordless → Email** (and **SMS**): turn them off, or turn the FolioMind application off on their **Applications** tab.
+3. Optional: **Applications → Applications → FolioMind → Settings → Advanced Settings → Grant Types**: untick **Passwordless OTP** and **Password**, then **Save**.
 
 ## 4. Application URLs
 
@@ -75,6 +52,6 @@ FolioMind never links to Auth0's hosted page, but someone could still open it di
 ## Check
 
 1. Open `https://<your-domain>/login` in a private window: FolioMind's screen appears, never Auth0's.
-2. **Continue with Google** goes straight to Google's account chooser and returns to the dashboard.
-3. Enter your email, receive the code, enter it: you land on the dashboard (or the page you came from).
+2. **Continue with Google** shows Google's account chooser and returns to the dashboard.
+3. **Continue with GitHub** goes straight to GitHub and returns to the dashboard.
 4. Visit `https://<your-domain>/dashboard/library` signed out: you are sent to `/login`, and after signing in you return to My Library.

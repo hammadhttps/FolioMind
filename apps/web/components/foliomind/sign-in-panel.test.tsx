@@ -1,21 +1,10 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { startEmailSignIn, verifyEmailCode } from "@/lib/auth/email-sign-in";
+import { render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { SignInPanel } from "./sign-in-panel";
 
-vi.mock("@/lib/auth/email-sign-in", () => ({
-  startEmailSignIn: vi.fn(),
-  verifyEmailCode: vi.fn(),
-}));
-
-const start = vi.mocked(startEmailSignIn);
-const verify = vi.mocked(verifyEmailCode);
-
 describe("SignInPanel", () => {
-  beforeEach(() => {
-    start.mockReset();
-    verify.mockReset();
+  afterEach(() => {
+    document.cookie = "fm_last_signin=; Max-Age=0; Path=/";
   });
 
   it("sends Google and GitHub straight to their connections, never to Auth0's page", () => {
@@ -34,52 +23,24 @@ describe("SignInPanel", () => {
     }
   });
 
-  it("validates the email address before calling the server", async () => {
-    const user = userEvent.setup();
+  it("offers only Google and GitHub", () => {
     render(<SignInPanel returnTo="/dashboard" />);
-    await user.type(screen.getByLabelText("Email address"), "not-an-email");
-    await user.click(screen.getByRole("button", { name: "Email me a sign-in code" }));
-    expect(await screen.findByText("Enter a valid email address.")).toBeInTheDocument();
-    expect(start).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("asks for the code after sending it, and shows server errors on the field", async () => {
-    const user = userEvent.setup();
-    start.mockResolvedValue({ ok: true, data: undefined });
-    verify.mockResolvedValue({
-      ok: false,
-      code: "invalid_grant",
-      fieldErrors: { code: ["That code didn't work. Check it, or send a new code."] },
-    });
+  it("marks the last used provider", () => {
+    document.cookie = "fm_last_signin=github; Path=/";
     render(<SignInPanel returnTo="/dashboard" />);
-
-    await user.type(screen.getByLabelText("Email address"), " Ada@Example.com ");
-    await user.click(screen.getByRole("button", { name: "Email me a sign-in code" }));
-    expect(start).toHaveBeenCalledWith({ email: "ada@example.com" });
-    expect(await screen.findByText("Check your email")).toBeInTheDocument();
-    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
-
-    await user.type(screen.getByLabelText("6-digit code"), "123456");
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(verify).toHaveBeenCalledWith({ email: "ada@example.com", code: "123456" });
-    expect(
-      await screen.findByText("That code didn't work. Check it, or send a new code."),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Send a new code in \d+s/ })).toBeDisabled();
+    const github = screen.getByRole("link", { name: /Continue with GitHub/ });
+    expect(within(github).getByText("Last used")).toBeInTheDocument();
+    expect(screen.getAllByText("Last used")).toHaveLength(1);
   });
 
-  it("shows a form-level message when email sign-in is unavailable", async () => {
-    const user = userEvent.setup();
-    start.mockResolvedValue({
-      ok: false,
-      code: "not_configured",
-      formError:
-        "Email sign-in isn't available right now. Try Google or GitHub, or try again later.",
-    });
+  it("ignores a last used value that is no longer offered", () => {
+    document.cookie = "fm_last_signin=email; Path=/";
     render(<SignInPanel returnTo="/dashboard" />);
-    await user.type(screen.getByLabelText("Email address"), "ada@example.com");
-    await user.click(screen.getByRole("button", { name: "Email me a sign-in code" }));
-    expect(await screen.findByText(/Email sign-in isn't available right now/)).toBeInTheDocument();
+    expect(screen.queryByText("Last used")).not.toBeInTheDocument();
   });
 
   it("shows sign-in errors passed from the callback", () => {

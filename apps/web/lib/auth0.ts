@@ -10,8 +10,8 @@ import type { SignInErrorCode } from "./auth/sign-in-errors";
  * variables are set; staging/production validation requires them.
  *
  * FolioMind uses its own sign-in screen (/login): Google and GitHub go straight
- * to the provider, email uses Passwordless codes, and callback errors return to
- * /login, so Auth0's hosted login page is never part of the flow.
+ * to the provider and callback errors return to /login, so Auth0's hosted login
+ * page is never part of the flow.
  * Hooks, user upsert and identity rules are added in Phase 4.
  */
 function createAuth0(): Auth0Client | null {

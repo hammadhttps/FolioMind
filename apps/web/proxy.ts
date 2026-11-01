@@ -13,7 +13,7 @@ import { auth0 } from "@/lib/auth0";
  */
 const SIGNED_IN_PREFIXES = ["/dashboard", "/read", "/admin"];
 
-/** The only Auth0 SDK routes FolioMind serves; MFA, passkey and passwordless HTTP routes stay closed. */
+/** The only Auth0 SDK routes FolioMind serves; MFA, passkey, passwordless and token routes stay closed. */
 const AUTH_ROUTES = new Set(["/auth/login", "/auth/logout", "/auth/callback", "/auth/profile"]);
 
 function requiresSession(pathname: string): boolean {

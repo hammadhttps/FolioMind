@@ -61,7 +61,7 @@ The Inngest integration expects a serve endpoint on Vercel; FolioMind's function
    - **Direct** → `DIRECT_DATABASE_URL` (workers and migrations).
 4. Local development uses the Compose Postgres by default (`postgres://foliomind:foliomind@localhost:5433/foliomind`); point the variables at a Neon `dev` branch only if you prefer a cloud database.
 
-### Auth0 (sign-in with email, Google and GitHub)
+### Auth0 (sign-in with Google and GitHub)
 
 Create one tenant per environment (for example `foliomind-dev`, `foliomind-staging`, `foliomind-prod`). If the tenant came from the Vercel integration, its application already exists: open it and add the localhost URLs from step 1 next to the Vercel ones, plus your production URL (`https://<project>.vercel.app/auth/callback` and the matching logout URL and web origin).
 
@@ -74,10 +74,10 @@ Create one tenant per environment (for example `foliomind-dev`, `foliomind-stagi
 3. **Applications → Create Application → Machine to Machine** named "FolioMind Management", authorized for the **Auth0 Management API** with only `read:users`, `update:users` and `delete:users` (Section 22 rule 8). Copy its credentials → `AUTH0_MGMT_CLIENT_ID`, `AUTH0_MGMT_CLIENT_SECRET`.
 4. **Google social connection** (Authentication → Social → Google): create your own OAuth client in Google Cloud Console (type _Web application_, authorized redirect URI `https://{AUTH0_DOMAIN}/login/callback`), configure the consent screen (app name, logo, support email, privacy and terms URLs), request only `openid`, `email`, `profile`, paste the client ID/secret into Auth0, and enable the connection for the FolioMind application only. Do not launch on Auth0's development keys.
 5. **GitHub social connection** (Authentication → Social → GitHub): create a GitHub OAuth App owned by an organization (callback `https://{AUTH0_DOMAIN}/login/callback`), enable the email attribute (`read:user`, `user:email`), paste the credentials into Auth0 and enable it for the FolioMind application only. Use one OAuth App per environment.
-6. **Email codes and FolioMind's own sign-in screen**: turn on the Passwordless Email connection, tick the **Passwordless OTP** grant on the application and set the Application Login URI to `https://<your-domain>/login`. Step-by-step settings, the code email template and checks are in [auth0-sign-in.md](auth0-sign-in.md). Auth0's hosted login page is not used.
+6. **FolioMind's own sign-in screen**: set the Application Login URI to `https://<your-domain>/login` and turn the database (username and password) and passwordless connections off for the application, since FolioMind offers only Google and GitHub. Step-by-step settings and checks are in [auth0-sign-in.md](auth0-sign-in.md). Auth0's hosted login page is not used.
 7. Before launch, configure a custom domain such as `auth.<your-domain>` and update the callbacks.
 
-All `AUTH0_*` variables go in `apps/web/.env.local`. The Google/GitHub OAuth secrets live in Auth0, never in FolioMind. Until the variables are set, sign-in buttons return a 503 explaining what is missing and email sign-in reports that it is unavailable; the rest of the site works.
+All `AUTH0_*` variables go in `apps/web/.env.local`. The Google/GitHub OAuth secrets live in Auth0, never in FolioMind. Until the variables are set, sign-in buttons return a 503 explaining what is missing; the rest of the site works.
 
 ### UploadThing (file storage)
 
