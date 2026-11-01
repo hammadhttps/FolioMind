@@ -1,3 +1,4 @@
+import { connect } from "node:net";
 import { createDb } from "@foliomind/db";
 import { runMigrations } from "@foliomind/db/migrate";
 import { seedRequired } from "@foliomind/db/seed";
@@ -29,17 +30,16 @@ async function prepareDatabase(): Promise<boolean> {
   if (!/^[a-z0-9_]+$/.test(name) || !name.endsWith("_test")) {
     throw new Error("TEST_DATABASE_URL must name a database ending in _test");
   }
-  const admin = new URL(TEST_DATABASE_URL);
-  admin.pathname = "/postgres";
-  const sql = postgres(admin.toString(), { max: 1, connect_timeout: 3, onnotice: () => {} });
-  try {
-    await sql`select 1`;
-  } catch {
-    await sql.end({ timeout: 1 }).catch(() => {});
+  // A plain TCP probe: a failed postgres.js query here crashes Vitest's
+  // source-map handling instead of reaching a catch block.
+  if (!(await portOpen(target.hostname, Number(target.port || 5432)))) {
     return unavailable(
       "Postgres is not reachable at TEST_DATABASE_URL; integration tests skip. Run `pnpm stack:up`.",
     );
   }
+  const admin = new URL(TEST_DATABASE_URL);
+  admin.pathname = "/postgres";
+  const sql = postgres(admin.toString(), { max: 1, connect_timeout: 5, onnotice: () => {} });
   try {
     await sql.unsafe(`drop database if exists "${name}" with (force)`);
     await sql.unsafe(`create database "${name}"`);
@@ -70,6 +70,19 @@ async function redisReachable(): Promise<boolean> {
     // Fall through to the warning.
   }
   return unavailable("The Upstash proxy is not reachable; cache tests skip. Run `pnpm stack:up`.");
+}
+
+function portOpen(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port, timeout: 2000 });
+    const done = (open: boolean) => {
+      socket.destroy();
+      resolve(open);
+    };
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
 }
 
 /** CI's integration job sets REQUIRE_TEST_SERVICES so a missing service fails instead of skipping. */

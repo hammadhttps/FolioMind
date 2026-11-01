@@ -67,7 +67,8 @@ describeWithDatabase("outbox", () => {
     const db = testDb();
     const key = `test-${randomUUID()}`;
     await enqueue(db, ping(key));
-    const now = new Date();
+    // Explicit clock, a second ahead so the just-enqueued row is due.
+    const now = new Date(Date.now() + 1000);
     const failing = vi.fn().mockRejectedValue(new Error("inngest down"));
 
     expect(await deliverPending(db, failing, { keys: [key], now })).toEqual({

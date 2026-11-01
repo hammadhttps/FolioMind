@@ -47,6 +47,11 @@ export interface DeliverOptions {
   limit?: number;
   /** How long a dispatcher owns leased rows before another may retry them. */
   leaseMs?: number;
+  /**
+   * Overrides the database clock (tests). By default "now" is Postgres's own
+   * clock, which a just-committed row's `available_at` can never be ahead of;
+   * the application's millisecond clock can trail its microseconds.
+   */
   now?: Date;
 }
 
@@ -69,11 +74,11 @@ export function outboxBackoffMs(attempts: number): number {
 export async function deliverPending(
   db: Database,
   send: SendEvents,
-  { keys, limit = 100, leaseMs = DEFAULT_LEASE_MS, now = new Date() }: DeliverOptions = {},
+  { keys, limit = 100, leaseMs = DEFAULT_LEASE_MS, now }: DeliverOptions = {},
 ): Promise<DeliverResult> {
   if (keys && keys.length === 0) return { delivered: 0, failed: 0 };
-  // Raw SQL parameters go to postgres.js as-is, so timestamps are passed as ISO strings.
-  const leaseUntil = new Date(now.getTime() + leaseMs);
+  // Raw SQL parameters go to postgres.js as-is, so a supplied time is an ISO string.
+  const at = now ? sql`${now.toISOString()}::timestamptz` : sql`now()`;
   const keyFilter = keys
     ? sql`and event_key in (${sql.join(
         keys.map((key) => sql`${key}`),
@@ -89,12 +94,14 @@ export async function deliverPending(
     attempts: number;
   }>(sql`
     update ${outboxEvents}
-    set lease_until = ${leaseUntil.toISOString()}, attempts = attempts + 1, updated_at = now()
+    set lease_until = ${at} + ${leaseMs} * interval '1 millisecond',
+        attempts = attempts + 1,
+        updated_at = now()
     where id in (
       select id from ${outboxEvents}
       where delivered_at is null
-        and available_at <= ${now.toISOString()}
-        and (lease_until is null or lease_until < ${now.toISOString()})
+        and available_at <= ${at}
+        and (lease_until is null or lease_until < ${at})
         ${keyFilter}
       order by available_at
       limit ${limit}
@@ -113,7 +120,7 @@ export async function deliverPending(
         .update(outboxEvents)
         .set({
           leaseUntil: null,
-          availableAt: new Date(now.getTime() + outboxBackoffMs(row.attempts)),
+          availableAt: sql`${at} + ${outboxBackoffMs(row.attempts)} * interval '1 millisecond'`,
         })
         .where(eq(outboxEvents.id, row.id));
     }
@@ -122,7 +129,7 @@ export async function deliverPending(
 
   await db
     .update(outboxEvents)
-    .set({ deliveredAt: now, leaseUntil: null })
+    .set({ deliveredAt: sql`${at}`, leaseUntil: null })
     .where(inArray(outboxEvents.id, ids));
   return { delivered: leased.length, failed: 0 };
 }
