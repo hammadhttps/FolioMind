@@ -35,6 +35,8 @@ pnpm check:services    # smoke checks
 
 The defaults work without any third-party keys; services without keys report "not configured". Add keys as described in [docs/setup/third-party-services.md](docs/setup/third-party-services.md).
 
+While `pnpm dev` runs, <http://localhost:3000/dev/ui> shows every UI component in its empty, loading, sample and error states, with previews of the signed-in screens. It is development-only and returns 404 in production builds. Signed-in e2e tests need `E2E_STORAGE_STATE` pointing to a Playwright storage state saved after signing in; without it they are skipped.
+
 ## Commands
 
 | Command                                         | What it does                                                                                                                                                        |
