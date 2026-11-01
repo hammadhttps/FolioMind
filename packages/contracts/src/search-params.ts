@@ -10,11 +10,24 @@ import { z } from "zod";
 export const SEARCH_MIN_LENGTH = 2;
 export const SEARCH_MAX_LENGTH = 100;
 
-/** Launch catalog taxonomy from the prototype (Section 20); Phase 4 seeds `categories` from it. */
+/** The prototype's Explore pills (Section 20) until Phase 9 builds them from category facets. */
 export const CATALOG_CATEGORIES = [
   { slug: "environment", name: "Environment" },
   { slug: "design", name: "Design" },
   { slug: "research", name: "Research" },
+] as const;
+
+/** Rows the required seed creates in `categories`: the prototype's three plus a general set. */
+export const STARTER_CATEGORIES = [
+  ...CATALOG_CATEGORIES,
+  { slug: "science", name: "Science" },
+  { slug: "technology", name: "Technology" },
+  { slug: "history", name: "History" },
+  { slug: "business", name: "Business" },
+  { slug: "education", name: "Education" },
+  { slug: "health", name: "Health" },
+  { slug: "arts", name: "Arts" },
+  { slug: "philosophy", name: "Philosophy" },
 ] as const;
 
 /** English first at launch (Section 1). */

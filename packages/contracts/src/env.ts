@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ServiceNotConfiguredError } from "./errors";
+import { INDEX_EMBEDDING_DIMENSION } from "./indexing";
 
 /*
  * Environment variable shapes shared by the web app, both workers and scripts
@@ -98,7 +99,14 @@ export const browserlessShape = {
 export const jinaShape = {
   JINA_API_KEY: secret.optional(),
   JINA_EMBEDDING_MODEL: z.string().min(1).default("jina-embeddings-v5-text-small"),
-  JINA_EMBEDDING_DIMENSION: z.coerce.number().int().min(32).max(1024).default(1024),
+  /** Must equal the `document_chunks.embedding` column size; changing it needs a migration. */
+  JINA_EMBEDDING_DIMENSION: z.coerce
+    .number()
+    .int()
+    .refine((value) => value === INDEX_EMBEDDING_DIMENSION, {
+      message: `must be ${INDEX_EMBEDDING_DIMENSION} (the indexed embedding size)`,
+    })
+    .default(INDEX_EMBEDDING_DIMENSION),
   JINA_RERANKER_MODEL: z.string().min(1).default("jina-reranker-v3.5"),
 };
 
