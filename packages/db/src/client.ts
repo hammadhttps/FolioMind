@@ -49,3 +49,9 @@ export function createDb({ url, role, max }: CreateDbOptions) {
 
 export type DbConnection = ReturnType<typeof createDb>;
 export type Database = DbConnection["db"];
+
+/** A transaction handle passed to `db.transaction` callbacks. */
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Domain services accept either the pool or a caller's transaction. */
+export type Executor = Database | Transaction;
