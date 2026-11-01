@@ -1,6 +1,7 @@
 import * as React from "react";
 
-const MOBILE_BREAKPOINT = 768;
+// Section 19: the sidebar becomes a drawer at 760px and below.
+const MOBILE_BREAKPOINT = 761;
 const MOBILE_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 
 function subscribe(onChange: () => void) {
