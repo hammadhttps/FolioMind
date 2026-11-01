@@ -6,6 +6,9 @@
       "dependsOn": ["^build"],
       "env": ["APP_ENV", "VERCEL_ENV", "NEXT_PUBLIC_*"],
       "passThroughEnv": [
+        "VERCEL_URL",
+        "VERCEL_BRANCH_URL",
+        "VERCEL_PROJECT_PRODUCTION_URL",
         "LOG_LEVEL",
         "DATABASE_URL",
         "DIRECT_DATABASE_URL",
