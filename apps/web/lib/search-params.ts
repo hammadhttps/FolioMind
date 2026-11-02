@@ -1,4 +1,9 @@
-import { CATALOG_SORTS, LIBRARY_SORTS, LIBRARY_TYPES } from "@foliomind/contracts/search-params";
+import {
+  CATALOG_SORTS,
+  LIBRARY_SORTS,
+  LIBRARY_STATUSES,
+  LIBRARY_TYPES,
+} from "@foliomind/contracts/search-params";
 import { parseAsArrayOf, parseAsInteger, parseAsString, parseAsStringLiteral } from "nuqs";
 
 /*
@@ -16,6 +21,8 @@ export const catalogParsers = {
 export const libraryParsers = {
   q: parseAsString.withDefault(""),
   type: parseAsStringLiteral(LIBRARY_TYPES).withDefault("all"),
+  status: parseAsStringLiteral(LIBRARY_STATUSES).withDefault("all"),
+  collection: parseAsString,
   sort: parseAsStringLiteral(LIBRARY_SORTS).withDefault("opened"),
 };
 
