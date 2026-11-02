@@ -61,11 +61,21 @@ describe("catalogSearchParamsSchema", () => {
 });
 
 describe("librarySearchParamsSchema", () => {
-  it("defaults the type filter and sort", () => {
+  it("defaults the filters and sort", () => {
     expect(parseSearchParams(librarySearchParamsSchema, { type: "everything" })).toEqual({
       q: undefined,
       type: "all",
+      status: "all",
+      collection: undefined,
       sort: "opened",
     });
+  });
+
+  it("ignores malformed collection IDs instead of failing", () => {
+    const parsed = parseSearchParams(librarySearchParamsSchema, {
+      collection: "not-a-uuid",
+      status: "processing",
+    });
+    expect(parsed).toMatchObject({ collection: undefined, status: "processing" });
   });
 });

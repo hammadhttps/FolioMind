@@ -152,7 +152,8 @@ export const documentVersions = pgTable(
     assetId: uuid("asset_id")
       .notNull()
       .references(() => assets.id),
-    sha256: text("sha256").notNull(),
+    /** Computed by Worker A from the stored bytes (Section 8); unknown until then. */
+    sha256: text("sha256"),
     pageCount: integer("page_count"),
     language: text("language"),
     status: documentVersionStatus("status").notNull().default("uploaded"),

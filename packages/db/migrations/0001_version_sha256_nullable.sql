@@ -1,0 +1,1 @@
+ALTER TABLE "document_versions" ALTER COLUMN "sha256" DROP NOT NULL;

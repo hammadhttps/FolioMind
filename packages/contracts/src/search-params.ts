@@ -38,7 +38,9 @@ export const CATALOG_PAGE_SIZE = 24;
 export const CATALOG_MAX_PAGE = 100;
 
 export const LIBRARY_TYPES = ["all", "uploads", "saved", "imported"] as const;
+export const LIBRARY_STATUSES = ["all", "ready", "processing", "attention"] as const;
 export const LIBRARY_SORTS = ["opened", "added", "title"] as const;
+export const LIBRARY_PAGE_SIZE = 24;
 
 type RawParam = string | string[] | undefined;
 const first = (value: unknown) => (Array.isArray(value) ? value[0] : value);
@@ -83,10 +85,15 @@ export const catalogSearchParamsSchema = z
 
 export type CatalogSearchParams = z.infer<typeof catalogSearchParamsSchema>;
 
-/** My Library: q, type, sort. Status and collection filters arrive with real documents. */
+/**
+ * My Library (Section 24): q, type, status, collection and sort. "Load more"
+ * appends keyset pages in the client, so the cursor is not part of the URL.
+ */
 export const librarySearchParamsSchema = z.object({
   q: searchTerm,
   type: z.preprocess(first, z.enum(LIBRARY_TYPES)).catch("all"),
+  status: z.preprocess(first, z.enum(LIBRARY_STATUSES)).catch("all"),
+  collection: z.preprocess(first, z.uuid().optional()).catch(undefined),
   sort: z.preprocess(first, z.enum(LIBRARY_SORTS)).catch("opened"),
 });
 
