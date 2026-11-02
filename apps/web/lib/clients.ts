@@ -71,6 +71,25 @@ export const getAuth0Management = lazy(() => {
   });
 });
 
+/**
+ * Server-side URL of a stored file on the app's UploadThing domain. It is
+ * never sent to a browser: reads go through FolioMind's authorized routes.
+ */
+export const storageFileUrl = (() => {
+  let appId: string | undefined;
+  return (fileKey: string): string => {
+    if (!appId) {
+      const { UPLOADTHING_TOKEN } = requireVariables(env, "UploadThing", ["UPLOADTHING_TOKEN"]);
+      const decoded = JSON.parse(Buffer.from(UPLOADTHING_TOKEN, "base64").toString("utf8")) as {
+        appId?: unknown;
+      };
+      if (typeof decoded.appId !== "string") throw new Error("UPLOADTHING_TOKEN has no app ID");
+      appId = decoded.appId;
+    }
+    return `https://${appId}.ufs.sh/f/${encodeURIComponent(fileKey)}`;
+  };
+})();
+
 export const getUtApi = lazy(() => {
   const { UPLOADTHING_TOKEN } = requireVariables(env, "UploadThing", ["UPLOADTHING_TOKEN"]);
   return new UTApi({ token: UPLOADTHING_TOKEN });

@@ -39,6 +39,17 @@ async function identify(headers: Headers): Promise<string> {
 }
 
 /**
+ * For callers that already know the user (UploadThing middleware): true when
+ * the request may proceed under the class's limit and failure policy.
+ */
+export async function checkRateLimitFor(
+  name: RateLimitClassName,
+  userId: string,
+): Promise<boolean> {
+  return (await check()(name, userIdentifier(userId))).allowed;
+}
+
+/**
  * Wraps a route handler: over the limit it answers 429 with Retry-After and
  * RateLimit-* headers (or 503 for fail-closed classes) before the handler runs.
  */
