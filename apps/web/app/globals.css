@@ -289,3 +289,27 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Reader highlights (Section 15 colors), drawn over the PDF.js canvas below the
+ * selectable text layer. The PDF itself is never inverted or recolored.
+ */
+.fm-highlight-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.fm-highlight {
+  position: absolute;
+  border-radius: 2px;
+  mix-blend-mode: multiply;
+}
+.fm-highlight[data-color="yellow"] {
+  background: var(--highlight-yellow);
+}
+.fm-highlight[data-color="mint"] {
+  background: var(--highlight-mint);
+}
+.fm-highlight[data-color="lavender"] {
+  background: var(--highlight-lavender);
+}
