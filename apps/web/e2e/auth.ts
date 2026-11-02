@@ -1,11 +1,21 @@
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { parseEnv } from "node:util";
 import { generateSessionCookie } from "@auth0/nextjs-auth0/testing";
-import { createDb, userPreferences, users } from "@foliomind/db";
+import {
+  assets,
+  createDb,
+  documents,
+  documentVersions,
+  libraryItems,
+  userPreferences,
+  users,
+} from "@foliomind/db";
 import { signIn, type UserSnapshot } from "@foliomind/domain";
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { E2E_AUTH0 } from "./auth-config";
 
 /*
@@ -87,6 +97,14 @@ export async function setStatus(userId: string, status: "active" | "suspended") 
   await db().update(users).set({ status }).where(eq(users.id, userId));
 }
 
+/** The page the reader last saved for a user's document, if any. */
+export async function savedPage(userId: string): Promise<number | null> {
+  const [row] = await db().execute<{ page_number: number }>(
+    sql`select page_number from reading_progress where user_id = ${userId} order by last_read_at desc limit 1`,
+  );
+  return row ? Number(row.page_number) : null;
+}
+
 export async function savedTheme(userId: string) {
   const [row] = await db()
     .select({ theme: userPreferences.theme })
@@ -95,6 +113,91 @@ export async function savedTheme(userId: string) {
   return row?.theme;
 }
 
+/** The local UploadThing token from apps/web/.env.local, if set (never printed). */
+export function uploadThingToken(): string | undefined {
+  const file = path.resolve(__dirname, "../.env.local");
+  if (process.env.UPLOADTHING_TOKEN) return process.env.UPLOADTHING_TOKEN;
+  if (!existsSync(file)) return undefined;
+  return parseEnv(readFileSync(file, "utf8")).UPLOADTHING_TOKEN || undefined;
+}
+
+/** Removes test users and everything they own, children first, and their stored files. */
 export async function deleteTestUsers(ids: readonly string[]) {
-  for (const id of ids) await db().delete(users).where(eq(users.id, id));
+  const token = uploadThingToken();
+  for (const id of ids) {
+    const stored = await db().execute<{ file_key: string }>(
+      sql`select file_key from assets where owner_id = ${id} and state <> 'deleted' and file_key not like 'e2e-missing-%'`,
+    );
+    if (token && stored.length > 0) {
+      const { UTApi } = await import("uploadthing/server");
+      await new UTApi({ token, logLevel: "Fatal" })
+        .deleteFiles(stored.map((row) => row.file_key))
+        .catch(() => {});
+    }
+    await db().transaction(async (tx) => {
+      await tx.execute(sql`delete from collections where user_id = ${id}`);
+      await tx.execute(sql`delete from library_items where user_id = ${id}`);
+      await tx.execute(sql`delete from annotations where user_id = ${id}`);
+      await tx.execute(sql`delete from upload_intents where user_id = ${id}`);
+      await tx.execute(
+        sql`delete from usage_operations where bucket_id in (select id from usage_buckets where user_id = ${id})`,
+      );
+      await tx.execute(sql`delete from usage_buckets where user_id = ${id}`);
+      await tx.execute(sql`delete from documents where owner_id = ${id}`);
+      await tx.execute(sql`delete from assets where owner_id = ${id}`);
+      await tx.delete(users).where(eq(users.id, id));
+    });
+  }
+}
+
+/**
+ * A library document whose stored file does not exist: enough for My Library,
+ * access checks and deletion. Reading real pages needs an actual upload.
+ */
+export async function seedDocument(
+  userId: string,
+  title: string,
+  status: "queued" | "ready" | "failed" = "queued",
+  fileKey = `e2e-missing-${randomUUID()}`,
+): Promise<{ documentId: string; libraryItemId: string }> {
+  const database = db();
+  const [asset] = await database
+    .insert(assets)
+    .values({
+      ownerId: userId,
+      fileKey,
+      customId: `e2e-${randomUUID()}`,
+      fileRoute: "sourcePdf",
+      acl: "private",
+      purpose: "source",
+      bytes: 1000,
+      mimeType: "application/pdf",
+      state: "ready",
+    })
+    .returning({ id: assets.id });
+  const [document] = await database
+    .insert(documents)
+    .values({ ownerId: userId, title, sourceKind: "upload" })
+    .returning({ id: documents.id });
+  const [version] = await database
+    .insert(documentVersions)
+    .values({
+      documentId: document!.id,
+      versionNo: 1,
+      assetId: asset!.id,
+      status,
+      indexVersion: "e2e",
+      embeddingModel: "e2e",
+      embeddingDimension: 1024,
+    })
+    .returning({ id: documentVersions.id });
+  await database
+    .update(documents)
+    .set({ currentVersionId: version!.id })
+    .where(eq(documents.id, document!.id));
+  const [item] = await database
+    .insert(libraryItems)
+    .values({ userId, documentId: document!.id })
+    .returning({ id: libraryItems.id });
+  return { documentId: document!.id, libraryItemId: item!.id };
 }

@@ -81,10 +81,16 @@ All `AUTH0_*` variables go in `apps/web/.env.local`. The Google/GitHub OAuth sec
 
 ### UploadThing (file storage)
 
-1. Create one UploadThing app per environment.
-2. In the app settings enable **ACL overrides** (needed for private source PDFs and exports, Section 25) and confirm your plan supports private files.
+1. Create one UploadThing app per environment. The free plan (2 GB, shared across apps) is enough.
+2. Leave the app's default ACL as it is. FolioMind runs on the free plan, which has public files only.
+   - Every PDF read goes through FolioMind's authorized route (`/api/documents/:id/file`), which checks access on each request.
+   - The stored file's address is never sent to a browser.
+   - Deleting a document also deletes its file from UploadThing right away.
+
+   To make files truly private later, upgrade the app to a paid plan, set the default ACL to **Private** with ACL overrides on, and switch `SOURCE_ACL` in `apps/web/app/api/uploadthing/core.ts`.
+
 3. Copy the token → `UPLOADTHING_TOKEN` in `apps/web/.env.local`, `apps/worker-ingestion/.env` and `apps/worker-generation/.env`.
-4. Development mode delivers the upload completion callback locally, so no tunnel is needed.
+4. Development mode delivers the upload completion callback locally, so no tunnel is needed. In production UploadThing calls `https://<your-domain>/api/uploadthing` with a signed request; the URL is detected from each request.
 
 ### Upstash Redis (rate limits and caches)
 

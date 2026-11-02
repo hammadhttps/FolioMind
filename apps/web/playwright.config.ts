@@ -17,6 +17,8 @@ export default defineConfig({
   // The local dev server compiles each route on first visit, which can take
   // longer than a test's default 30 seconds when workers compile in parallel.
   timeout: isCI ? 30_000 : 90_000,
+  // Server re-renders after URL and action changes are slower on a busy dev server.
+  expect: { timeout: isCI ? 5_000 : 15_000 },
   reporter: isCI ? "github" : "list",
   use: {
     baseURL,
