@@ -21,9 +21,11 @@ const nextConfig: NextConfig = {
   ],
   cacheComponents: true,
   partialPrefetching: true,
-  // Provider profile pictures copied on first sign-in (Section 22 rule 7).
+  // Provider profile pictures (Section 22 rule 7) and public UploadThing files
+  // such as custom avatars (Section 25).
   images: {
     remotePatterns: [
+      { protocol: "https", hostname: "*.ufs.sh", pathname: "/f/**" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
       { protocol: "https", hostname: "s.gravatar.com" },

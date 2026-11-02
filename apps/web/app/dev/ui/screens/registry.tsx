@@ -16,7 +16,10 @@ import { ReaderScreen } from "@/components/foliomind/screens/reader";
 import { ResearchWorkspaceScreen } from "@/components/foliomind/screens/research-workspace";
 import { SettingsScreen } from "@/components/foliomind/screens/settings";
 import {
+  SAMPLE_ALLOWANCE,
   SAMPLE_BOOK,
+  SAMPLE_COLLECTIONS,
+  SAMPLE_LIBRARY,
   SAMPLE_PROJECTS,
   SAMPLE_PUBLISHER,
   SAMPLE_SIGN_IN_METHODS,
@@ -30,9 +33,56 @@ interface ScreenPreview {
 
 /** Development-only previews of templates that need a session or data to render for real. */
 export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
-  dashboard: { title: "Dashboard", shell: "app", render: () => <DashboardScreen /> },
-  "my-library": { title: "My Library", shell: "app", render: () => <MyLibraryScreen /> },
-  reader: { title: "Reader", shell: "app", render: () => <ReaderScreen /> },
+  dashboard: {
+    title: "Dashboard (new account)",
+    shell: "app",
+    render: () => (
+      <DashboardScreen
+        data={{
+          counts: { documents: 0, savedBooks: 0, workspaces: 0, projects: 0 },
+          continueReading: [],
+          allowance: SAMPLE_ALLOWANCE,
+        }}
+      />
+    ),
+  },
+  "my-library": {
+    title: "My Library (empty)",
+    shell: "app",
+    render: () => (
+      <MyLibraryScreen
+        initial={{ items: [], nextCursor: null }}
+        collections={[]}
+        allowance={SAMPLE_ALLOWANCE}
+      />
+    ),
+  },
+  "my-library-sample": {
+    title: "My Library (sample items)",
+    shell: "app",
+    render: () => (
+      <MyLibraryScreen
+        initial={{ items: SAMPLE_LIBRARY, nextCursor: null }}
+        collections={SAMPLE_COLLECTIONS}
+        allowance={SAMPLE_ALLOWANCE}
+      />
+    ),
+  },
+  reader: {
+    title: "Reader (layout; no file in the gallery)",
+    shell: "app",
+    render: () => (
+      <ReaderScreen
+        document={{
+          id: "00000000-0000-4000-8000-000000000201",
+          title: "Sample: Field Notes",
+          status: "processing",
+        }}
+        annotations={[]}
+        progress={null}
+      />
+    ),
+  },
   "research-workspace": {
     title: "Research workspace",
     shell: "app",

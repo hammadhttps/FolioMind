@@ -36,6 +36,7 @@ import { Switch } from "@/components/ui/switch";
 import { updateProfile } from "@/lib/account/actions";
 import { IDENTITY_SUCCESS_CODES, identityMessage } from "@/lib/account/identity-messages";
 import { loginHref } from "@/lib/auth/return-to";
+import { useUploadThing } from "@/lib/uploadthing";
 import { handleRateLimitResponse, showRateLimitToast } from "@/lib/rate-limit-toast";
 import { ComingSoonButton } from "../coming-soon";
 import { PageHeading } from "../page-heading";
@@ -81,10 +82,11 @@ export function SettingsScreen({
         <Panel title="Profile" contentClassName="space-y-4 pt-0">
           <div className="flex items-center gap-3">
             <UserAvatar user={user} className="size-12" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{user.name}</p>
-              <p className="text-sm text-muted-foreground">Photo from your sign-in provider</p>
+              <p className="text-sm text-muted-foreground">JPEG, PNG or WebP, up to 2 MB</p>
             </div>
+            <AvatarUpload />
           </div>
           <ProfileForm displayName={user.name} />
           <div className="grid gap-1.5">
@@ -209,6 +211,61 @@ function ProfileForm({ displayName }: { displayName: string }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Profile picture through UploadThing's public `avatarImage` route (Section 25). */
+function AvatarUpload() {
+  const router = useRouter();
+  const preview = useIsPreview();
+  const input = useRef<HTMLInputElement>(null);
+  const { startUpload, isUploading } = useUploadThing("avatarImage", {
+    onUploadError: (error) => {
+      toast.error(error.data?.message ?? "We couldn't update your photo. Please try again.");
+    },
+  });
+
+  async function upload(file: File | undefined) {
+    if (!file || preview) return;
+    if (
+      !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+      file.size > 2 * 1024 * 1024
+    ) {
+      toast.error("Choose a JPEG, PNG or WebP image up to 2 MB.");
+      return;
+    }
+    const result = await startUpload([file]);
+    if (result?.[0]?.serverData?.avatarUrl) {
+      toast.success("Photo updated.");
+      router.refresh();
+    }
+  }
+
+  return (
+    <>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(event) => {
+          void upload(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={isUploading}
+        onClick={() => input.current?.click()}
+      >
+        {isUploading ? <Spinner aria-hidden="true" /> : null}
+        {isUploading ? "Uploading…" : "Change photo"}
+      </Button>
+    </>
   );
 }
 

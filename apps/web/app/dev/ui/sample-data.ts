@@ -2,7 +2,10 @@ import type { BookCardProps } from "@/components/foliomind/book-card";
 import type { ProjectRow } from "@/components/foliomind/projects-table";
 import type { BookDetails } from "@/components/foliomind/screens/book-details";
 import type { PublisherProfile } from "@/components/foliomind/screens/publisher-profile";
+import type { CollectionView } from "@/components/foliomind/screens/my-library";
 import type { SignInMethodView } from "@/components/foliomind/screens/settings";
+import type { UploadAllowanceView } from "@/components/foliomind/upload-dialog";
+import type { LibraryCard } from "@/lib/library/view";
 import type { SessionUser } from "@/lib/auth/types";
 
 /*
@@ -24,6 +27,41 @@ export const SAMPLE_USER: SessionUser = {
 export const SAMPLE_SIGN_IN_METHODS: SignInMethodView[] = [
   { provider: "google-oauth2", connected: true, email: "sample.reader@example.com", primary: true },
   { provider: "github", connected: false, email: null, primary: false },
+];
+
+export const SAMPLE_ALLOWANCE: UploadAllowanceView = {
+  documents: 3,
+  documentLimit: 5,
+  storageBytes: 14 * 1024 * 1024,
+  storageLimitBytes: 100 * 1024 * 1024,
+};
+
+export const SAMPLE_COLLECTIONS: CollectionView[] = [
+  {
+    id: "00000000-0000-4000-8000-0000000000c1",
+    name: "Thesis (sample)",
+    description: null,
+    itemCount: 2,
+  },
+];
+
+const sampleCard = (n: number, title: string, status: LibraryCard["status"]): LibraryCard => ({
+  id: `00000000-0000-4000-8000-00000000010${n}`,
+  documentId: `00000000-0000-4000-8000-00000000020${n}`,
+  bookId: null,
+  title,
+  author: null,
+  kind: "upload",
+  status,
+  addedAt: "2026-11-01T10:00:00.000Z",
+  lastOpenedAt: null,
+  collectionIds: n === 1 ? ["00000000-0000-4000-8000-0000000000c1"] : [],
+});
+
+export const SAMPLE_LIBRARY: LibraryCard[] = [
+  sampleCard(1, "Sample: Field Notes on River Restoration", "ready"),
+  sampleCard(2, "Sample: Margins and Grids", "processing"),
+  sampleCard(3, "Sample: Scanned Handout", "attention"),
 ];
 
 export const SAMPLE_BOOKS: BookCardProps[] = [

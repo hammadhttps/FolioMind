@@ -1,11 +1,12 @@
 "use client";
 
-import { Bookmark, Clock, FilePlus2, FileText, FileUp, Library, Network } from "lucide-react";
+import { Bookmark, FilePlus2, FileText, FileUp, Library, Network } from "lucide-react";
 import Link from "next/link";
 import { useQueryState } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dashboardTabParser } from "@/lib/search-params";
+import { BookCard } from "../book-card";
 import { ComingSoonButton } from "../coming-soon";
 import { EmptyState } from "../empty-state";
 import { Hero, HeroLink } from "../hero";
@@ -14,12 +15,24 @@ import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
 import { ProjectsTable } from "../projects-table";
 import { WelcomeTitle } from "../session-user";
+import { UploadDialog, type UploadAllowanceView } from "../upload-dialog";
+
+export interface DashboardData {
+  counts: { documents: number; savedBooks: number; workspaces: number; projects: number };
+  continueReading: {
+    documentId: string;
+    title: string;
+    pageNumber: number;
+    pageCount: number | null;
+  }[];
+  allowance: UploadAllowanceView | null;
+}
 
 /**
  * Dashboard (Section 20 #6) with the research workspace list as `?tab=research`.
- * Metrics show "—" and sections are empty until Phases 5–8 supply real data.
+ * Every figure is real; projects and workspaces stay empty until Phases 7–8.
  */
-export function DashboardScreen() {
+export function DashboardScreen({ data }: { data: DashboardData | null }) {
   const [tab, setTab] = useQueryState("tab", dashboardTabParser);
 
   return (
@@ -29,10 +42,15 @@ export function DashboardScreen() {
         description="Your reading, research and projects, all in one place."
         actions={
           <>
-            <ComingSoonButton variant="outline" reason="Uploads open soon">
-              <FileUp aria-hidden="true" />
-              Upload PDF
-            </ComingSoonButton>
+            <UploadDialog
+              allowance={data?.allowance ?? null}
+              trigger={
+                <Button variant="outline">
+                  <FileUp aria-hidden="true" />
+                  Upload PDF
+                </Button>
+              }
+            />
             <ComingSoonButton reason="PDF creation opens soon">
               <FilePlus2 aria-hidden="true" />
               Create a PDF
@@ -70,10 +88,22 @@ export function DashboardScreen() {
           />
 
           <section aria-label="Your activity" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <MetricCard label="Saved books" value={null} icon={Bookmark} />
-            <MetricCard label="Workspaces" value={null} icon={Network} />
-            <MetricCard label="Created projects" value={null} icon={FileText} />
-            <MetricCard label="Reading time" value={null} icon={Clock} />
+            <MetricCard
+              label="Saved books"
+              value={data?.counts.savedBooks ?? null}
+              icon={Bookmark}
+            />
+            <MetricCard label="Workspaces" value={data?.counts.workspaces ?? null} icon={Network} />
+            <MetricCard
+              label="Created projects"
+              value={data?.counts.projects ?? null}
+              icon={FileText}
+            />
+            <MetricCard
+              label="Documents in your library"
+              value={data?.counts.documents ?? null}
+              icon={Library}
+            />
           </section>
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_300px]">
@@ -82,21 +112,47 @@ export function DashboardScreen() {
                 <h2 id="continue-heading" className="text-lg font-semibold">
                   Pick up where you left off
                 </h2>
-                <EmptyState
-                  icon={Library}
-                  title="Books you open will appear here."
-                  description="Open a document from your library and FolioMind will remember your place."
-                  actions={
-                    <>
-                      <Button asChild variant="outline">
-                        <Link href="/dashboard/library">Go to My Library</Link>
-                      </Button>
-                      <Button asChild variant="ghost">
-                        <Link href="/library">Explore the library</Link>
-                      </Button>
-                    </>
-                  }
-                />
+                {data && data.continueReading.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                    {data.continueReading.map((entry, index) => (
+                      <BookCard
+                        key={entry.documentId}
+                        id={entry.documentId}
+                        title={entry.title}
+                        label="Upload"
+                        href={`/read/${entry.documentId}`}
+                        progress={
+                          entry.pageCount
+                            ? Math.round((entry.pageNumber / entry.pageCount) * 100)
+                            : null
+                        }
+                        badge={
+                          <p className="text-sm text-muted-foreground">
+                            Page {entry.pageNumber}
+                            {entry.pageCount ? ` of ${entry.pageCount}` : ""}
+                          </p>
+                        }
+                        className={index === 2 ? "max-lg:hidden" : undefined}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    icon={Library}
+                    title="Books you open will appear here."
+                    description="Open a document from your library and FolioMind will remember your place."
+                    actions={
+                      <>
+                        <Button asChild variant="outline">
+                          <Link href="/dashboard/library">Go to My Library</Link>
+                        </Button>
+                        <Button asChild variant="ghost">
+                          <Link href="/library">Explore the library</Link>
+                        </Button>
+                      </>
+                    }
+                  />
+                )}
               </section>
 
               <section aria-labelledby="projects-heading" className="space-y-3">
