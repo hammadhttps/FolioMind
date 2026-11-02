@@ -293,3 +293,25 @@ export async function ownedSourceCount(db: Executor, userId: string): Promise<nu
     );
   return row?.count ?? 0;
 }
+
+export interface UploadAllowance {
+  documents: number;
+  documentLimit: number;
+  storageBytes: number;
+  storageLimitBytes: number;
+}
+
+/** The upload dialog's gauge: owned sources and stored bytes against the plan (Section 10). */
+export async function uploadAllowance(db: Executor, userId: string): Promise<UploadAllowance> {
+  const { limits } = await currentEntitlement(db, userId);
+  const [documents, storageBytes] = await Promise.all([
+    ownedSourceCount(db, userId),
+    storageBytesUsed(db, userId),
+  ]);
+  return {
+    documents,
+    documentLimit: limits.ownedSourcePdfs,
+    storageBytes,
+    storageLimitBytes: limits.storageBytes,
+  };
+}

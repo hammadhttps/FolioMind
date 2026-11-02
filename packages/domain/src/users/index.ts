@@ -1,5 +1,5 @@
 import { PLAN_CODES, THEME_PREFERENCES, type ThemePreference } from "@foliomind/contracts";
-import { userPreferences, users, type Database, type Executor } from "@foliomind/db";
+import { assets, userPreferences, users, type Database, type Executor } from "@foliomind/db";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { writeAudit } from "../audit";
@@ -243,5 +243,46 @@ export async function grantRoleByEmail(
       metadata: { role: input.role, previousRole: user.role, reason: input.reason.slice(0, 200) },
     });
     return { userId: user.id, previousRole: user.role };
+  });
+}
+
+/**
+ * A new profile picture (Section 25 `avatarImage`): records the public asset,
+ * points the account at it and marks the previous custom avatar for deletion;
+ * Phase 6 cleanup purges the file.
+ */
+export async function setAvatar(
+  db: Database,
+  input: { userId: string; file: { key: string; size: number; type: string }; url: string },
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [previous] = await tx
+      .select({ assetId: users.avatarAssetId })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .for("update");
+    const [asset] = await tx
+      .insert(assets)
+      .values({
+        ownerId: input.userId,
+        fileKey: input.file.key,
+        customId: `avatar:${input.file.key}`,
+        fileRoute: "avatarImage",
+        acl: "public",
+        purpose: "avatar",
+        bytes: input.file.size,
+        mimeType: input.file.type,
+        state: "ready",
+      })
+      .onConflictDoNothing({ target: assets.fileKey })
+      .returning({ id: assets.id });
+    if (!asset) return;
+    await tx
+      .update(users)
+      .set({ avatarAssetId: asset.id, avatarUrl: input.url })
+      .where(eq(users.id, input.userId));
+    if (previous?.assetId) {
+      await tx.update(assets).set({ state: "deleting" }).where(eq(assets.id, previous.assetId));
+    }
   });
 }
