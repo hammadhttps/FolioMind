@@ -18,6 +18,8 @@ export interface InngestConfig {
   /** Workers only; the web app never serves functions. */
   signingKey?: string | undefined;
   baseUrl?: string | undefined;
+  /** Changes per deploy (e.g. the git commit) so Inngest can roll deploys. */
+  appVersion?: string | undefined;
   logger?: InngestLogger | undefined;
 }
 
@@ -28,6 +30,7 @@ export function createInngest(config: InngestConfig): Inngest {
     ...(config.eventKey ? { eventKey: config.eventKey } : {}),
     ...(config.signingKey ? { signingKey: config.signingKey } : {}),
     ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
+    ...(config.appVersion ? { appVersion: config.appVersion } : {}),
     ...(config.logger ? { logger: config.logger } : {}),
   });
 }
