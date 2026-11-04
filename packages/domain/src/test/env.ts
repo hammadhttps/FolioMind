@@ -1,3 +1,11 @@
+/** What the global setup tells test files (see global-setup.ts). */
+declare module "vitest" {
+  export interface ProvidedContext {
+    databaseReady: boolean;
+    redisReady: boolean;
+  }
+}
+
 /** Local Compose defaults; CI points these at its service containers. */
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL || "postgres://foliomind:foliomind@localhost:5433/foliomind_test";

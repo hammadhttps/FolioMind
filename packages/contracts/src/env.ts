@@ -130,13 +130,8 @@ export const stripeWebShape = {
   STRIPE_PRO_MONTHLY_PRICE_ID: z.string().startsWith("price_").optional(),
 };
 
-export const pushengageShape = {
-  PUSHENGAGE_API_KEY: secret.optional(),
-};
-
 /**
  * Variables each deployable needs once APP_ENV is staging or production.
- * PushEngage stays optional (browser notifications degrade to in-app only), and
  * STRIPE_WEBHOOK_SECRET joins the web list in Phase 10 with the webhook route.
  */
 export const PRODUCTION_REQUIRED = {
@@ -153,12 +148,12 @@ export const PRODUCTION_REQUIRED = {
     "GEMINI_API_KEY",
     "STRIPE_SECRET_KEY",
   ],
+  // STRIPE_SECRET_KEY joins in Phase 10 with sync-stripe and reconcile-billing.
   workerIngestion: [
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
     "UPLOADTHING_TOKEN",
     "JINA_API_KEY",
-    "STRIPE_SECRET_KEY",
   ],
   workerGeneration: [
     "INNGEST_EVENT_KEY",
@@ -271,4 +266,22 @@ export function requireVariables<TEnv extends object, TKey extends keyof TEnv & 
   return Object.fromEntries(keys.map((key) => [key, env[key]])) as {
     [K in TKey]-?: NonNullable<TEnv[K]>;
   };
+}
+
+/**
+ * Server-side address of a stored file on the UploadThing app named by the
+ * token (`https://<appId>.ufs.sh/f/<key>`). Never sent to a browser: reads go
+ * through FolioMind's authorized routes or the workers.
+ */
+export function uploadThingFileUrl(token: string, fileKey: string): string {
+  let appId: unknown;
+  try {
+    appId = (JSON.parse(atob(token.trim())) as { appId?: unknown }).appId;
+  } catch {
+    appId = undefined;
+  }
+  if (typeof appId !== "string" || !/^[a-z0-9]+$/i.test(appId)) {
+    throw new Error("UPLOADTHING_TOKEN is not a valid v7 token (no app ID)");
+  }
+  return `https://${appId}.ufs.sh/f/${encodeURIComponent(fileKey)}`;
 }

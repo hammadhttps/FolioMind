@@ -6,6 +6,7 @@ import type {
 } from "@foliomind/contracts/search-params";
 import type { Executor } from "@foliomind/db";
 import { sql, type SQL } from "drizzle-orm";
+import { latestJobs, type LatestJob } from "../processing";
 
 /*
  * My Library (blueprint Sections 5, 11 and 24): the user's saved items, which
@@ -29,6 +30,12 @@ export interface LibraryEntry {
   addedAt: Date;
   lastOpenedAt: Date | null;
   collectionIds: string[];
+  /** The article's address, for imported documents. */
+  sourceUrl: string | null;
+  /** False while an import has produced no version yet. */
+  readable: boolean;
+  /** The latest import or ingestion job, for progress, Retry and Cancel. */
+  job: LatestJob | null;
 }
 
 export interface LibraryQuery {
@@ -71,8 +78,18 @@ export function decodeCursor(value: string | undefined): Cursor | null {
   return null;
 }
 
-function statusOf(versionStatus: string | null, kind: LibraryKind): LibraryStatus {
+function statusOf(
+  versionStatus: string | null,
+  kind: LibraryKind,
+  job: LatestJob | undefined,
+): LibraryStatus {
   if (kind === "saved" || versionStatus === "ready") return "ready";
+  if (versionStatus === null) {
+    // An import with no snapshot yet: processing until its job fails.
+    return job && (job.status === "failed" || job.status === "cancelled")
+      ? "attention"
+      : "processing";
+  }
   if ((ATTENTION_VERSION_STATUSES as readonly string[]).includes(versionStatus ?? "")) {
     return "attention";
   }
@@ -102,10 +119,12 @@ export async function listLibrary(
   if (query.type === "saved") filters.push(sql`kind = 'saved'`);
   if (query.status === "ready") filters.push(sql`(kind = 'saved' or version_status = 'ready')`);
   if (query.status === "processing") {
-    filters.push(sql`version_status in (${inList(PROCESSING_VERSION_STATUSES)})`);
+    filters.push(sql`(version_status in (${inList(PROCESSING_VERSION_STATUSES)})
+      or (kind = 'imported' and version_status is null and coalesce(import_status, 'queued') not in ('failed', 'cancelled')))`);
   }
   if (query.status === "attention") {
-    filters.push(sql`version_status in (${inList(ATTENTION_VERSION_STATUSES)})`);
+    filters.push(sql`(version_status in (${inList(ATTENTION_VERSION_STATUSES)})
+      or (kind = 'imported' and version_status is null and import_status in ('failed', 'cancelled')))`);
   }
   if (query.collectionId) {
     filters.push(sql`exists (
@@ -143,6 +162,7 @@ export async function listLibrary(
     author: string | null;
     kind: LibraryKind;
     version_status: string | null;
+    source_url: string | null;
     added_at: string;
     last_opened_at: string | null;
     collection_ids: string[];
@@ -162,6 +182,12 @@ export async function listLibrary(
           else 'upload'
         end as kind,
         v.status::text as version_status,
+        d.source_url,
+        (
+          select j.status from jobs j
+          where j.kind = 'import-url' and j.target_id = d.id
+          order by j.created_at desc limit 1
+        ) as import_status,
         (
           select max(rp.last_read_at)
           from reading_progress rp
@@ -191,6 +217,11 @@ export async function listLibrary(
   const page = rows.slice(0, query.limit);
   const last = page.at(-1);
   const hasMore = rows.length > query.limit;
+  const jobs = await latestJobs(
+    db,
+    query.userId,
+    page.flatMap((row) => (row.document_id ? [row.document_id] : [])),
+  );
   return {
     items: page.map((row) => ({
       id: row.id,
@@ -199,10 +230,17 @@ export async function listLibrary(
       title: row.title,
       author: row.author,
       kind: row.kind,
-      status: statusOf(row.version_status, row.kind),
+      status: statusOf(
+        row.version_status,
+        row.kind,
+        row.document_id ? jobs.get(row.document_id) : undefined,
+      ),
       addedAt: new Date(row.added_at),
       lastOpenedAt: toDate(row.last_opened_at),
       collectionIds: row.collection_ids,
+      sourceUrl: row.source_url,
+      readable: row.kind === "saved" || row.version_status !== null,
+      job: (row.document_id ? jobs.get(row.document_id) : undefined) ?? null,
     })),
     nextCursor: hasMore && last ? encodeCursor({ v: last.sort_value, id: last.id }) : null,
   };

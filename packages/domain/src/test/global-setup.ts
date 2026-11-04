@@ -6,13 +6,6 @@ import postgres from "postgres";
 import type { TestProject } from "vitest/node";
 import { TEST_DATABASE_URL, TEST_REDIS } from "./env";
 
-declare module "vitest" {
-  export interface ProvidedContext {
-    databaseReady: boolean;
-    redisReady: boolean;
-  }
-}
-
 /**
  * Integration tests run against the local Docker stack (`pnpm stack:up`) or the
  * CI service containers. The test database is dropped, recreated and migrated

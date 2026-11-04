@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./test/db": "./src/test/db.ts",
+    "./test/env": "./src/test/env.ts",
+    "./test/global-setup": "./src/test/global-setup.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
