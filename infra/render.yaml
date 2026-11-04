@@ -1,4 +1,6 @@
 # Render Blueprint for FolioMind's background workers (blueprint Sections 9 and 13).
+# Not used today: production runs these functions on Vercel
+# (docs/setup/background-jobs.md). This is the paid path if it outgrows that.
 #
 # Worker A (foliomind-ingestion) runs Phase 6's Inngest functions over an
 # outbound Inngest Connect connection, so it needs no public port. Worker B
@@ -68,9 +70,9 @@ services:
         value: "2"
       - key: CONTROL_CONCURRENCY
         value: "2"
-      # Every 10 minutes: within Inngest's free plan (50k executions a month).
+      # Hourly: each sweep wakes Neon, whose free plan allows 100 CU-hours a month.
       - key: OUTBOX_DISPATCH_CRON
-        value: "*/10 * * * *"
+        value: "0 * * * *"
       # 1 only if production has its own UploadThing app (Section 25).
       - key: ORPHAN_FILE_SWEEP
         value: "0"

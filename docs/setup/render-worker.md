@@ -1,13 +1,13 @@
 # Worker A on Render
 
-Worker A (`foliomind-ingestion`) is the background service that processes documents. It extracts, chunks, embeds and indexes PDFs, imports web articles, sends in-app notifications and runs the outbox and cleanup sweeps (blueprint Section 9). It runs as a Docker **background worker** on Render. It connects out to Inngest Cloud through Inngest Connect, so it needs no public address.
+**Not used today.** FolioMind runs its background jobs on Vercel; see [background-jobs.md](background-jobs.md). This guide is the paid path if the project ever outgrows Vercel's free plan.
 
-Until Worker A is running, documents on the live site stay **Processing**.
+Worker A (`foliomind-ingestion`) is the background service that processes documents. It extracts, chunks, embeds and indexes PDFs, imports web articles, sends in-app notifications and runs the outbox and cleanup sweeps (blueprint Section 9). It runs as a Docker **background worker** on Render. It connects out to Inngest Cloud through Inngest Connect, so it needs no public address.
 
 ## What it costs
 
 - **Render:** background workers have no free plan. The smallest instance (`0.5c-512mb`, 0.5 CPU, 512 MB) costs about $7 a month; check the price Render shows when you create the service.
-- **Inngest:** the free plan includes 50,000 executions a month and 3 worker connections. The outbox sweep runs every 10 minutes (about 8,600 executions a month), and each document costs roughly 8–12 executions.
+- **Inngest:** the free plan includes 50,000 executions a month and 3 worker connections. The outbox sweep runs hourly (about 2,200 executions a month), and each document costs roughly 8–12 executions.
 - **Browserless:** used only for web article imports. The free plan is enough to start.
 - **Jina:** embeddings and Reader use the same key as local development.
 
@@ -40,14 +40,14 @@ Don't paste any of these into chat. They go straight into Render's form.
 
 ## Documents uploaded before the worker existed
 
-Uploads from before Worker A was running were announced to Inngest when no worker could receive them, so they stay **Processing**. Re-queue them once from your computer:
+The worker's hourly sweep re-queues uploads that never started, so they recover on their own within about two hours. To do it now, run this from your computer:
 
 ```bash
 # PowerShell
 $env:DIRECT_DATABASE_URL="<Neon direct connection string>"; pnpm requeue-ingestion
 ```
 
-The script replaces each stalled job with a new one, and the worker's outbox sweep picks them up within 10 minutes. Running it again is harmless.
+The script replaces each stalled job with a new one, and the next outbox sweep delivers them. Running it again is harmless.
 
 ## Later changes
 

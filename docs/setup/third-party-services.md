@@ -48,7 +48,7 @@ A FolioMind name, when set, wins over its alias. Variables the app does not use 
 
 Integration variables are **Sensitive**: `vercel env pull` returns them empty. For local development, copy Auth0 and Stripe values from the provider dashboards (Vercel → Integrations → the integration → open in Auth0/Stripe) into `apps/web/.env.local` (and `STRIPE_SECRET_KEY` into `apps/worker-ingestion/.env`). Locally, Inngest and Upstash keep using the Docker stack. Keys you add yourself in Vercel (Gemini, Jina, UploadThing, database, `RATE_LIMIT_IP_SECRET`) must be ticked for **Preview** too if you want preview deployments, because Preview counts as staging and staging validates them.
 
-The Inngest integration expects a serve endpoint on Vercel; FolioMind's functions run in the workers through Connect, so ignore its sync warnings for the web project. Worker A runs on Render from Phase 6 (see [render-worker.md](render-worker.md)) and needs the Inngest and Upstash credentials copied from those dashboards; Worker B and Stripe follow in Phases 8 and 10.
+The Inngest integration syncs the app's serve endpoint, `/api/inngest`, where production runs FolioMind's background functions (see [background-jobs.md](background-jobs.md)). There are no separate workers to deploy.
 
 ## Services
 
