@@ -1,22 +1,28 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  importUrlFormSchema,
   MAX_SOURCE_PDF_BYTES,
   UPLOAD_REFUSALS,
+  type ImportUrlFormValues,
   type UploadRefusalCode,
 } from "@foliomind/contracts";
 import { FileText, FileUp, Globe, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogClose } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatBytes } from "@/lib/format";
+import { handleRateLimitResponse } from "@/lib/rate-limit-toast";
 import { useUploadThing } from "@/lib/uploadthing";
 import { cn } from "@/lib/utils";
 import { AppDialog } from "./app-dialog";
@@ -40,9 +46,9 @@ function checkFile(file: File): UploadRefusalCode | null {
 }
 
 /**
- * My Library's upload dialog (Sections 20 and 25): Upload PDF through
- * UploadThing, with the Import from URL tab opening in Phase 6. The success
- * toast appears only after the server has created the document.
+ * My Library's upload dialog (Sections 20, 25 and 27): Upload PDF through
+ * UploadThing, or Import from URL through Jina Reader. Success toasts appear
+ * only after the server has created the document.
  */
 export function UploadDialog({
   trigger,
@@ -76,33 +82,8 @@ export function UploadDialog({
           <UploadForm allowance={allowance ?? null} onDone={() => setOpen(false)} />
         </TabsContent>
 
-        <TabsContent value="url" className="space-y-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="import-url">Article URL</Label>
-            <Input
-              id="import-url"
-              type="url"
-              inputMode="url"
-              disabled
-              placeholder="https://example.com/article"
-            />
-            <p className="text-sm text-muted-foreground">
-              One public article at a time. Pages behind a sign-in can&apos;t be imported.
-            </p>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <Checkbox id="import-rights" disabled className="mt-0.5" />
-            <Label htmlFor="import-rights" className="leading-snug font-normal">
-              I may save this page for personal study.
-            </Label>
-          </div>
-          <div className="flex flex-col-reverse items-stretch gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
-            <p className="text-sm text-muted-foreground sm:mr-auto">Web import opens soon.</p>
-            <DialogClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DialogClose>
-            <Button disabled>Import</Button>
-          </div>
+        <TabsContent value="url">
+          <ImportForm onDone={() => setOpen(false)} />
         </TabsContent>
       </Tabs>
     </AppDialog>
@@ -171,7 +152,9 @@ function UploadForm({
       setError(UPLOAD_REFUSALS[(data?.error as UploadRefusalCode | null) ?? "failed"]);
       return;
     }
-    toast.success("Your PDF is ready to read.");
+    toast.success(
+      "PDF added. You can read it now; search and questions follow once it's processed.",
+    );
     setFile(null);
     setTitle("");
     setProgress(0);
@@ -278,6 +261,118 @@ function UploadForm({
         <Button type="submit" disabled={!file || isUploading}>
           {isUploading ? <Spinner aria-hidden="true" /> : null}
           {isUploading ? "Uploading…" : "Upload"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Section 27 step 1 and Section 28 "Import from URL"; the server checks everything again. */
+function ImportForm({ onDone }: { onDone: () => void }) {
+  const router = useRouter();
+  const preview = useIsPreview();
+  const id = useId();
+  const [formError, setFormError] = useState<string | null>(null);
+  const form = useForm<ImportUrlFormValues>({
+    resolver: zodResolver(importUrlFormSchema),
+    mode: "onTouched",
+    defaultValues: { url: "", rightsConfirmed: false as unknown as true },
+  });
+  const { errors, isSubmitting } = form.formState;
+
+  async function onSubmit(values: ImportUrlFormValues) {
+    if (preview) return;
+    setFormError(null);
+    const response = await fetch("/api/imports/url", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(values),
+    }).catch(() => null);
+    if (!response) {
+      setFormError("We couldn't reach FolioMind. Check your connection and try again.");
+      return;
+    }
+    if (handleRateLimitResponse(response)) return;
+    const body = (await response.json().catch(() => null)) as {
+      error?: { message?: string; fieldErrors?: Record<string, string[] | undefined> };
+    } | null;
+    if (!response.ok) {
+      const urlError = body?.error?.fieldErrors?.url?.[0];
+      if (urlError) form.setError("url", { message: urlError }, { shouldFocus: true });
+      else setFormError(body?.error?.message ?? "We couldn't import that page. Please try again.");
+      return;
+    }
+    toast.success("Importing the article. It appears in your library as Processing.");
+    form.reset();
+    onDone();
+    router.refresh();
+  }
+
+  return (
+    <form className="space-y-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
+      {formError ? (
+        <StatusAlert tone="error" title="We couldn't import that page.">
+          {formError}
+        </StatusAlert>
+      ) : null}
+      <Field data-invalid={errors.url ? true : undefined}>
+        <FieldLabel htmlFor={`${id}-url`}>Article URL</FieldLabel>
+        <Input
+          id={`${id}-url`}
+          type="url"
+          inputMode="url"
+          autoComplete="url"
+          placeholder="https://example.com/article"
+          aria-invalid={errors.url ? true : undefined}
+          aria-describedby={`${id}-url-help${errors.url ? ` ${id}-url-error` : ""}`}
+          disabled={isSubmitting}
+          {...form.register("url")}
+        />
+        <FieldDescription id={`${id}-url-help`}>
+          One public article at a time. Pages behind a sign-in or paywall can&apos;t be imported.
+        </FieldDescription>
+        {errors.url ? <FieldError id={`${id}-url-error`}>{errors.url.message}</FieldError> : null}
+      </Field>
+      <Controller
+        control={form.control}
+        name="rightsConfirmed"
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.error ? true : undefined}>
+            <div className="flex items-start gap-2.5">
+              <Checkbox
+                id={`${id}-rights`}
+                className="mt-0.5"
+                checked={field.value === true}
+                onCheckedChange={(checked) => field.onChange(checked === true)}
+                onBlur={field.onBlur}
+                ref={field.ref}
+                disabled={isSubmitting}
+                aria-invalid={fieldState.error ? true : undefined}
+                aria-describedby={fieldState.error ? `${id}-rights-error` : undefined}
+              />
+              <Label htmlFor={`${id}-rights`} className="leading-snug font-normal">
+                I may save this page for personal study.
+              </Label>
+            </div>
+            {fieldState.error ? (
+              <FieldError id={`${id}-rights-error`}>{fieldState.error.message}</FieldError>
+            ) : null}
+          </Field>
+        )}
+      />
+      <p className="text-sm text-muted-foreground">
+        FolioMind saves a private PDF snapshot of the page, with its address and date. Each import
+        counts toward your monthly web imports.
+      </p>
+      <div className="flex flex-col-reverse items-stretch gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+        <DialogClose asChild>
+          <Button type="button" variant="outline" disabled={isSubmitting}>
+            Cancel
+          </Button>
+        </DialogClose>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? <Spinner aria-hidden="true" /> : null}
+          {isSubmitting ? "Importing…" : "Import"}
         </Button>
       </div>
     </form>

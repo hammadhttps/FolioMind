@@ -56,6 +56,23 @@ const sampleCard = (n: number, title: string, status: LibraryCard["status"]): Li
   addedAt: "2026-11-01T10:00:00.000Z",
   lastOpenedAt: null,
   collectionIds: n === 1 ? ["00000000-0000-4000-8000-0000000000c1"] : [],
+  sourceUrl: null,
+  readable: true,
+  job:
+    status === "ready"
+      ? null
+      : {
+          id: `00000000-0000-4000-8000-00000000030${n}`,
+          kind: "ingest-document",
+          status: status === "processing" ? "running" : "failed",
+          live: status === "processing",
+          errorCode: status === "attention" ? "needs_ocr" : null,
+          errorMessage:
+            status === "attention"
+              ? "This PDF looks scanned or has no selectable text. FolioMind can't read scanned pages yet, so it can't be searched or used for answers."
+              : null,
+          canRetry: false,
+        },
 });
 
 export const SAMPLE_LIBRARY: LibraryCard[] = [

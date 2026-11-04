@@ -1,8 +1,11 @@
 "use client";
 
-import { noteBodySchema, type HighlightColor } from "@foliomind/contracts";
+import { isTerminalJobStatus, noteBodySchema, type HighlightColor } from "@foliomind/contracts";
+import { useQuery } from "@tanstack/react-query";
 import { Bookmark, StickyNote } from "lucide-react";
-import { useRef, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -20,6 +23,7 @@ import type { AnnotationItem } from "@/lib/reader/view";
 import { AppDialog } from "../app-dialog";
 import { ChatPanel } from "../chat-panel";
 import { PageHeading } from "../page-heading";
+import { fetchJob, jobQueryKey } from "../processing-status";
 import { AnnotationsPanel } from "../reader/annotations-panel";
 import type { SelectionAnchor } from "../reader/anchors";
 import { PdfReader, type ReaderApi, type SavedPosition } from "../reader/pdf-reader";
@@ -31,6 +35,8 @@ export interface ReaderDocument {
   id: string;
   title: string;
   status: "ready" | "processing" | "attention";
+  /** The owner's latest processing job, if any. */
+  job?: { id: string; live: boolean; errorMessage: string | null; canRetry: boolean } | null;
 }
 
 const WIDE = "(min-width: 981px)";
@@ -79,10 +85,29 @@ export function ReaderScreen({
   } | null>(null);
   const [tab, setTab] = useState("notes");
 
+  const router = useRouter();
+  const liveJobId = document.status === "processing" && document.job?.live ? document.job.id : null;
+  const job = useQuery({
+    queryKey: jobQueryKey(liveJobId ?? "none"),
+    queryFn: () => fetchJob(liveJobId!),
+    enabled: Boolean(liveJobId) && !preview,
+    refetchInterval: (query) =>
+      query.state.data && isTerminalJobStatus(query.state.data.status) ? false : 3000,
+  });
+  const jobFinished = job.data ? isTerminalJobStatus(job.data.status) : false;
+  useEffect(() => {
+    // The version's new status (ready or needs attention) comes from the server.
+    if (jobFinished) router.refresh();
+  }, [jobFinished, router]);
+
   const aiUnavailableReason =
     document.status === "ready"
-      ? "Cited answers about your documents open soon."
-      : "AI becomes available once your document is processed.";
+      ? "Ready for questions. Cited answers about your documents open soon."
+      : document.status === "attention"
+        ? (document.job?.errorMessage ?? "This document couldn't be prepared for AI answers.")
+        : job.data && !jobFinished
+          ? `Processing… ${job.data.phaseLabel} AI becomes available once your document is processed.`
+          : "Processing… AI becomes available once your document is processed.";
   const bookmarked = annotations.some(
     (item) => item.kind === "bookmark" && item.pageNumber === page,
   );
@@ -282,7 +307,20 @@ export function ReaderScreen({
 
       {document.status === "attention" ? (
         <StatusAlert tone="warning" title="This document needs attention.">
-          It couldn&apos;t be prepared for AI answers. You can still read, highlight and take notes.
+          {document.job?.errorMessage ?? "It couldn't be prepared for AI answers."} You can still
+          read, highlight and take notes.
+          {document.job?.canRetry ? (
+            <>
+              {" "}
+              <Link
+                href="/dashboard/library?status=attention"
+                className="underline underline-offset-2"
+              >
+                Retry from My Library
+              </Link>
+              .
+            </>
+          ) : null}
         </StatusAlert>
       ) : null}
 

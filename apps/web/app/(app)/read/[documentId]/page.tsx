@@ -1,4 +1,11 @@
-import { getReadableDocument, getReadingProgress, listAnnotations } from "@foliomind/domain";
+import { isTerminalJobStatus, jobErrorMessage } from "@foliomind/contracts";
+import {
+  canRetryJob,
+  getReadableDocument,
+  getReadingProgress,
+  latestJobs,
+  listAnnotations,
+} from "@foliomind/domain";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -27,10 +34,13 @@ export default async function ReaderPage({ params }: PageProps<"/read/[documentI
   const db = getDb();
   const document = await getReadableDocument(db, user, documentId.data);
   if (!document) notFound();
-  const [annotations, progress] = await Promise.all([
+  const [annotations, progress, jobs] = await Promise.all([
     listAnnotations(db, user.id, document.version.id),
     getReadingProgress(db, user.id, document.version.id),
+    // Processing state is the owner's only (Section 11: owner-safe job status).
+    document.isOwner ? latestJobs(db, user.id, [document.id]) : null,
   ]);
+  const job = jobs?.get(document.id) ?? null;
 
   return (
     <ReaderScreen
@@ -38,6 +48,14 @@ export default async function ReaderPage({ params }: PageProps<"/read/[documentI
         id: document.id,
         title: document.title,
         status: STATUS_GROUP[document.version.status] ?? "processing",
+        job: job
+          ? {
+              id: job.id,
+              live: !isTerminalJobStatus(job.status),
+              errorMessage: jobErrorMessage(job.safeErrorCode),
+              canRetry: canRetryJob(job),
+            }
+          : null,
       }}
       annotations={annotations.map(toAnnotationItem)}
       progress={progress ? { pageNumber: progress.pageNumber, position: progress.position } : null}

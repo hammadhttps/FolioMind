@@ -2,15 +2,25 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  NOTIFICATION_PREFERENCES,
   profileFormSchema,
   SIGN_IN_PROVIDER_NAMES,
+  type NotificationPreferenceKey,
+  type NotificationPreferences,
   type ProfileFormValues,
   type SignInProvider,
 } from "@foliomind/contracts";
 import { Link2, LogOut, Monitor, Moon, Sun, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { GitHubMark, GoogleMark } from "@/components/icons/brand";
@@ -34,6 +44,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { updateProfile } from "@/lib/account/actions";
+import { updateNotificationPreferencesAction } from "@/lib/notifications/actions";
 import { IDENTITY_SUCCESS_CODES, identityMessage } from "@/lib/account/identity-messages";
 import { loginHref } from "@/lib/auth/return-to";
 import { useUploadThing } from "@/lib/uploadthing";
@@ -57,18 +68,20 @@ export interface SignInMethodView {
 }
 
 /**
- * Account Settings (Section 20 #13): profile, appearance and sign-in methods
- * are saved to the account; notification preferences open in Phase 6 and
- * account deletion in Phase 10. Email and verification are managed by the
+ * Account Settings (Section 20 #13): profile, appearance, notification
+ * preferences and sign-in methods are saved to the account; account deletion
+ * opens in Phase 10. Email and verification are managed by the
  * sign-in provider.
  */
 export function SettingsScreen({
   methods,
   identityResult,
+  notificationPreferences = { documents: true },
 }: {
   methods: SignInMethodView[];
   /** `?identity=` outcome from the link callback or a reauthentication. */
   identityResult?: string | null;
+  notificationPreferences?: NotificationPreferences;
 }) {
   const user = useSessionUser();
   return (
@@ -106,13 +119,7 @@ export function SettingsScreen({
 
         <Panel title="Preferences" contentClassName="space-y-5 pt-0">
           <ThemeSetting />
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Notifications</legend>
-            <SwitchRow id="notify-ready" label="A document is ready to read" />
-            <SwitchRow id="notify-project" label="A project draft or export is ready" />
-            <SwitchRow id="notify-push" label="Browser notifications on this device" />
-            <p className="text-sm text-muted-foreground">Notification settings open soon.</p>
-          </fieldset>
+          <NotificationSettings initial={notificationPreferences} />
           <p className="text-sm">
             Your plan and usage are on{" "}
             <Link href="/dashboard/billing" className="text-link underline underline-offset-2">
@@ -312,14 +319,60 @@ function ThemeSetting() {
   );
 }
 
-function SwitchRow({ id, label }: { id: string; label: string }) {
+/**
+ * In-app notifications only (push was dropped, 2026-11-04). Turning a group
+ * off stops new notices of that kind; the setting saves at once.
+ */
+function NotificationSettings({ initial }: { initial: NotificationPreferences }) {
+  const preview = useIsPreview();
+  const [values, setValues] = useState(initial);
+  const [pending, startTransition] = useTransition();
+
+  const change = (key: NotificationPreferenceKey, checked: boolean) => {
+    const previous = values;
+    const next = { ...values, [key]: checked };
+    setValues(next);
+    if (preview) return;
+    startTransition(async () => {
+      const result = await updateNotificationPreferencesAction(next);
+      if (!result.ok) {
+        setValues(previous);
+        if (result.code === "rate_limited") showRateLimitToast(result.retryAfterSeconds);
+        else toast.error(result.formError ?? "We couldn't save that. Try again.");
+        return;
+      }
+      toast.success("Notification settings saved.");
+    });
+  };
+
   return (
-    <div className="flex items-center justify-between gap-3">
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
-      <Switch id={id} disabled />
-    </div>
+    <fieldset className="space-y-3" disabled={pending}>
+      <legend className="text-sm font-medium">Notifications</legend>
+      {(Object.keys(NOTIFICATION_PREFERENCES) as NotificationPreferenceKey[]).map((key) => {
+        const group = NOTIFICATION_PREFERENCES[key];
+        return (
+          <div key={key} className="flex items-start justify-between gap-3">
+            <div className="space-y-0.5">
+              <Label htmlFor={`notify-${key}`} className="font-normal">
+                {group.label}
+              </Label>
+              <p id={`notify-${key}-help`} className="text-sm text-muted-foreground">
+                {group.description}
+              </p>
+            </div>
+            <Switch
+              id={`notify-${key}`}
+              checked={values[key]}
+              onCheckedChange={(checked) => change(key, checked)}
+              aria-describedby={`notify-${key}-help`}
+            />
+          </div>
+        );
+      })}
+      <p className="text-sm text-muted-foreground">
+        Notifications appear under the bell at the top of the page.
+      </p>
+    </fieldset>
   );
 }
 

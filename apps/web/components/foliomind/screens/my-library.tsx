@@ -8,11 +8,20 @@ import {
   type CollectionFormValues,
 } from "@foliomind/contracts";
 import { SEARCH_MIN_LENGTH } from "@foliomind/contracts/search-params";
-import { FileUp, FolderPlus, Library, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  FileUp,
+  FolderPlus,
+  Library,
+  MoreHorizontal,
+  Pencil,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { debounce, useQueryStates } from "nuqs";
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -52,6 +61,7 @@ import {
   deleteCollectionAction,
   deleteDocumentAction,
   loadMoreLibraryAction,
+  reimportDocumentAction,
   renameDocumentAction,
   setCollectionMembershipAction,
   updateCollectionAction,
@@ -68,7 +78,7 @@ import { PageHeading } from "../page-heading";
 import { SearchField } from "../search-field";
 import { useIsPreview } from "../session-user";
 import { StatusAlert } from "../status-alert";
-import { StatusChip } from "../status-chip";
+import { ProcessingStatus } from "../processing-status";
 import { UploadDialog, type UploadAllowanceView } from "../upload-dialog";
 
 const TYPE_OPTIONS = [
@@ -265,6 +275,7 @@ function LibraryResults({
       return override && override !== "removed" ? { ...item, ...override } : item;
     });
   const nextCursor = appended ? appended.nextCursor : initial.nextCursor;
+  const refresh = useCallback(() => router.refresh(), [router]);
 
   function override(id: string, value: Partial<LibraryCard> | "removed" | null) {
     setOverrides((current) => {
@@ -337,14 +348,20 @@ function LibraryResults({
             title={item.title}
             author={item.author}
             label={KIND_LABELS[item.kind]}
-            href={item.documentId ? `/read/${item.documentId}` : `/books/${item.bookId}`}
-            badge={<StatusChip status={item.status} />}
+            href={
+              item.documentId
+                ? item.readable
+                  ? `/read/${item.documentId}`
+                  : "/dashboard/library?status=processing"
+                : `/books/${item.bookId}`
+            }
+            badge={<ProcessingStatus item={item} onFinished={refresh} />}
             action={
               <ItemMenu
                 item={item}
                 collections={collections}
                 onChange={(value) => override(item.id, value)}
-                onSettled={() => router.refresh()}
+                onSettled={refresh}
               />
             }
           />
@@ -397,6 +414,17 @@ function ItemMenu({
     onSettled();
   }
 
+  async function reimport() {
+    if (!item.documentId || preview) return;
+    const result = await reimportDocumentAction(item.documentId).catch(() => null);
+    if (!result?.ok) {
+      reportFailure(result, "We couldn't start the re-import. Please try again.");
+      return;
+    }
+    toast.success("Re-importing the article. The current copy stays readable until it's done.");
+    onSettled();
+  }
+
   async function remove() {
     if (!item.documentId || preview) return;
     onChange("removed");
@@ -424,7 +452,7 @@ function ItemMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-52">
-          {item.documentId ? (
+          {item.documentId && item.readable ? (
             <DropdownMenuItem asChild>
               <Link href={`/read/${item.documentId}`}>Open in reader</Link>
             </DropdownMenuItem>
@@ -434,6 +462,22 @@ function ItemMenu({
               <Pencil aria-hidden="true" />
               Rename…
             </DropdownMenuItem>
+          ) : null}
+          {item.sourceUrl ? (
+            <>
+              <DropdownMenuItem asChild>
+                <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
+                  <ExternalLink aria-hidden="true" />
+                  Open original page
+                </a>
+              </DropdownMenuItem>
+              {item.job?.live ? null : (
+                <DropdownMenuItem onSelect={() => void reimport()}>
+                  <RefreshCw aria-hidden="true" />
+                  Re-import
+                </DropdownMenuItem>
+              )}
+            </>
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="text-xs text-muted-foreground">

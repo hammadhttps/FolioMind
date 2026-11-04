@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CreditCard, LogOut, Menu, Monitor, Moon, Search, Settings, Sun } from "lucide-react";
+import { CreditCard, LogOut, Menu, Monitor, Moon, Search, Settings, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment } from "react";
@@ -24,19 +24,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SessionUser } from "@/lib/auth/types";
 import { breadcrumbFor } from "@/lib/navigation";
-import { EmptyState } from "./empty-state";
+import { NotificationsSheet } from "./notifications-sheet";
 import { usePersistedTheme } from "./theme-preference";
 import { UserAvatar } from "./user-avatar";
 
@@ -151,38 +143,6 @@ function ThemeMenu() {
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/** Notification history arrives in Phase 6; until then the drawer is honestly empty. */
-function NotificationsSheet() {
-  return (
-    <Sheet>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Notifications">
-              <Bell className="size-5" aria-hidden="true" />
-            </Button>
-          </SheetTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Notifications</TooltipContent>
-      </Tooltip>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-sm">
-        <SheetHeader className="border-b px-5 py-4">
-          <SheetTitle className="text-base">Notifications</SheetTitle>
-          <SheetDescription>Updates about your documents, research and projects.</SheetDescription>
-        </SheetHeader>
-        <div className="flex flex-1 items-center p-5">
-          <EmptyState
-            variant="plain"
-            icon={Bell}
-            title="You're all caught up."
-            description="When a document finishes processing or a project is ready, you'll see it here."
-          />
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }
 

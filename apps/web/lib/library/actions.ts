@@ -14,6 +14,7 @@ import {
   listLibrary,
   markAssetsDeleted,
   renameDocument,
+  requestReimport,
   setCollectionMembership,
   updateCollection,
 } from "@foliomind/domain";
@@ -21,6 +22,8 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { z } from "zod";
 import { getDb, getUtApi } from "@/lib/clients";
+import { importRefusalMessage } from "@/lib/jobs/messages";
+import { deliverNow } from "@/lib/outbox";
 import { rateLimitAction } from "@/lib/rate-limit";
 import { requireUser } from "@/lib/session";
 import { toLibraryCard, type LibraryCard } from "./view";
@@ -78,6 +81,29 @@ export async function deleteDocumentAction(documentId: unknown): Promise<ActionR
     });
   }
   return { ok: true, data: undefined };
+}
+
+/**
+ * Re-import (Section 27 step 8): a new snapshot of the article becomes a new
+ * version; the current one stays readable until the new one is ready. Uses the
+ * import rate limit and monthly allowance.
+ */
+export async function reimportDocumentAction(
+  documentId: unknown,
+): Promise<ActionResult<{ jobId: string }>> {
+  const user = await requireUser();
+  const limited = await rateLimitAction("urlImport", await headers());
+  if (limited) return limited;
+  const id = z.uuid().safeParse(documentId);
+  if (!id.success) return NOT_FOUND;
+  const result = await requestReimport(getDb(), { userId: user.id, documentId: id.data });
+  if (!result.ok) {
+    return result.code === "not_found"
+      ? NOT_FOUND
+      : { ok: false, code: result.code, formError: importRefusalMessage(result.code) };
+  }
+  await deliverNow([result.eventKey]);
+  return { ok: true, data: { jobId: result.jobId } };
 }
 
 const nameTaken = (): ActionResult<never> => ({
