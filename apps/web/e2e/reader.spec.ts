@@ -77,9 +77,10 @@ test("upload a PDF, read it, annotate it and come back to the same place", async
   await dialog.locator('input[type="file"]').setInputFiles(FIXTURE);
   await dialog.getByLabel("Title (optional)").fill("Field Notes e2e");
   await dialog.getByRole("button", { name: "Upload", exact: true }).click();
-  await expect(page.getByText("Your PDF is ready to read.")).toBeVisible({ timeout: 90_000 });
+  await expect(page.getByText(/PDF added\. You can read it now/)).toBeVisible({ timeout: 90_000 });
   const card = page.getByRole("article").filter({ hasText: "Field Notes e2e" });
-  await expect(card.getByText("Processing")).toBeVisible();
+  // Processing, or already Ready when a local Worker A picked it up at once.
+  await expect(card.getByText(/^(Processing|Ready)$/).first()).toBeVisible();
 
   // Reader: pages, navigation and find.
   await card.getByRole("link", { name: "Field Notes e2e" }).click();
@@ -93,7 +94,9 @@ test("upload a PDF, read it, annotate it and come back to the same place", async
   await expect(page.locator('.page[data-page-number="1"] .textLayer span').first()).toBeAttached();
   await page.getByRole("tab", { name: "Ask AI" }).click();
   await expect(
-    page.getByText("AI becomes available once your document is processed.").first(),
+    page
+      .getByText(/AI becomes available once your document is processed|Ready for questions/)
+      .first(),
   ).toBeVisible();
   await page.getByRole("tab", { name: /Notes/ }).click();
 

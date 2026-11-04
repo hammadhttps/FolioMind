@@ -143,6 +143,9 @@ export async function deleteTestUsers(ids: readonly string[]) {
         sql`delete from usage_operations where bucket_id in (select id from usage_buckets where user_id = ${id})`,
       );
       await tx.execute(sql`delete from usage_buckets where user_id = ${id}`);
+      await tx.execute(sql`delete from ai_runs where user_id = ${id}`);
+      await tx.execute(sql`delete from url_imports where user_id = ${id}`);
+      await tx.execute(sql`delete from jobs where owner_id = ${id}`);
       await tx.execute(sql`delete from documents where owner_id = ${id}`);
       await tx.execute(sql`delete from assets where owner_id = ${id}`);
       await tx.delete(users).where(eq(users.id, id));
@@ -200,4 +203,20 @@ export async function seedDocument(
     .values({ userId, documentId: document!.id })
     .returning({ id: libraryItems.id });
   return { documentId: document!.id, libraryItemId: item!.id };
+}
+
+/** True when a Worker A is connected to the local Inngest Dev Server. */
+export async function hasConnectedWorker(): Promise<boolean> {
+  const response = await fetch("http://127.0.0.1:8288/v0/gql", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query: "{ apps { name connected } }" }),
+  }).catch(() => null);
+  if (!response?.ok) return false;
+  const body = (await response.json().catch(() => null)) as {
+    data?: { apps?: { name: string; connected: boolean }[] };
+  } | null;
+  return Boolean(
+    body?.data?.apps?.some((app) => app.name === "foliomind-ingestion" && app.connected),
+  );
 }
