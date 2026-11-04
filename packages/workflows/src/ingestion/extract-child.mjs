@@ -1,47 +1,29 @@
 import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
-import type {
-  ExtractionMode,
-  ExtractionOutcome,
-  RawLine,
-  RawPage,
-} from "@foliomind/workflows/worker-a";
+import { pathToFileURL } from "node:url";
 
 /*
  * Restricted PDF parsing (blueprint Section 8 step 1), run as a child process
- * that the parent starts with a memory cap and kills on a hard timeout. It
- * checks the `%PDF-` signature, parses with the pdfjs-dist legacy build (no
- * scripting, no XFA, no font loading), refuses password-protected files and
- * returns text lines with their font size and position. Nothing here touches
- * the network, the database or secrets.
+ * that the parent starts with a memory cap, no secrets in its environment and
+ * a hard timeout (see extractor.ts). It checks the `%PDF-` signature, parses
+ * with the pdfjs-dist legacy build (no scripting, no XFA, no font loading),
+ * refuses password-protected files and returns text lines with their font size
+ * and position. Nothing here touches the network, the database or secrets.
+ *
+ * Plain JavaScript with no dependencies of its own: the Vercel route forks this
+ * file as it is, and the parent says where pdfjs-dist lives.
  */
 
-interface Request {
-  filePath: string;
-  mode: ExtractionMode;
-  maxPages: number;
-}
-
-const require = createRequire(import.meta.url);
-const pdfjsRoot = path.dirname(require.resolve("pdfjs-dist/package.json"));
-
-function reply(outcome: ExtractionOutcome): void {
+function reply(outcome) {
   process.send?.(outcome, () => process.exit(0));
 }
 
-interface TextItem {
-  str: string;
-  transform: number[];
-  hasEOL: boolean;
-}
-
-function linesOf(items: readonly unknown[]): RawLine[] {
-  const lines: RawLine[] = [];
+function linesOf(items) {
+  const lines = [];
   let text = "";
   let size = 0;
-  let y: number | null = null;
-  let lastX: number | null = null;
+  let y = null;
+  let lastX = null;
 
   const flush = () => {
     if (text.trim()) lines.push({ text, size: Math.round(size * 100) / 100, y: y ?? 0 });
@@ -51,9 +33,8 @@ function linesOf(items: readonly unknown[]): RawLine[] {
     lastX = null;
   };
 
-  for (const raw of items) {
-    if (!raw || typeof raw !== "object" || !("str" in raw)) continue;
-    const item = raw as TextItem;
+  for (const item of items) {
+    if (!item || typeof item !== "object" || !("str" in item)) continue;
     const [a = 0, b = 0, c = 0, d = 0, x = 0, itemY = 0] = item.transform;
     const itemSize = Math.hypot(c, d) || Math.hypot(a, b);
     if (y !== null && Math.abs(itemY - y) > Math.max(itemSize, size) * 0.6) flush();
@@ -78,13 +59,13 @@ function linesOf(items: readonly unknown[]): RawLine[] {
   return lines;
 }
 
-async function run({ filePath, mode, maxPages }: Request): Promise<ExtractionOutcome> {
+async function run({ filePath, mode, maxPages, pdfjsRoot }) {
   const data = new Uint8Array(await readFile(filePath));
   // The signature check never trusts the declared type (Section 25).
   const head = Buffer.from(data.subarray(0, 1024)).toString("latin1");
   if (!head.includes("%PDF-")) return { ok: false, code: "invalid_pdf" };
 
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const pdfjs = await import(pathToFileURL(path.join(pdfjsRoot, "legacy/build/pdf.mjs")).href);
   const task = pdfjs.getDocument({
     data,
     verbosity: 0,
@@ -99,8 +80,10 @@ async function run({ filePath, mode, maxPages }: Request): Promise<ExtractionOut
   try {
     document = await task.promise;
   } catch (error) {
-    const name = (error as { name?: string })?.name;
-    return { ok: false, code: name === "PasswordException" ? "encrypted_pdf" : "invalid_pdf" };
+    return {
+      ok: false,
+      code: error?.name === "PasswordException" ? "encrypted_pdf" : "invalid_pdf",
+    };
   }
   try {
     const pageCount = document.numPages;
@@ -109,7 +92,7 @@ async function run({ filePath, mode, maxPages }: Request): Promise<ExtractionOut
     if (mode === "validate") return { ok: true, pageCount, pages: [] };
 
     const labels = await document.getPageLabels().catch(() => null);
-    const pages: RawPage[] = [];
+    const pages = [];
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent({ includeMarkedContent: false });
@@ -127,12 +110,13 @@ async function run({ filePath, mode, maxPages }: Request): Promise<ExtractionOut
   }
 }
 
-process.once("message", (message: Request) => {
+process.once("message", (message) => {
   run(message)
     .then(reply)
-    .catch((error: unknown) => {
-      // Not the file's fault: exit with a failure so the step retries. Error names only.
-      console.error(`extraction failed: ${(error as { name?: string })?.name ?? "Error"}`);
+    .catch((error) => {
+      // Not the file's fault: exit with a failure so the step retries.
+      // Error names and codes only; never document text.
+      console.error(`extraction failed: ${error?.name ?? "Error"} ${error?.code ?? ""}`.trim());
       process.exit(1);
     });
 });

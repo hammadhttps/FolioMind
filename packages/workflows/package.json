@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./worker-a": "./src/worker-a.ts"
+    "./next": "./src/next.ts",
+    "./worker-a": "./src/worker-a.ts",
+    "./extract-child": "./src/ingestion/extract-child.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -27,6 +29,7 @@
     "@foliomind/pdf": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "inngest": "^4.26.1",
+    "uploadthing": "^7.7.4",
     "zod": "^4.6.7"
   }
 }

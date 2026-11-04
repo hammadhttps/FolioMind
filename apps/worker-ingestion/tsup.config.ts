@@ -2,7 +2,10 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   // The extraction child is its own file: it is forked, never imported.
-  entry: ["src/index.ts", "src/extract-child.ts"],
+  entry: {
+    index: "src/index.ts",
+    "extract-child": "../../packages/workflows/src/ingestion/extract-child.mjs",
+  },
   format: ["esm"],
   platform: "node",
   target: "node24",

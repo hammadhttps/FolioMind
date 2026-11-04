@@ -20,6 +20,11 @@ export interface InngestConfig {
   baseUrl?: string | undefined;
   /** Changes per deploy (e.g. the git commit) so Inngest can roll deploys. */
   appVersion?: string | undefined;
+  /**
+   * Serverless hosts: how long one request may keep running steps before
+   * handing back to Inngest, so it never reaches the host's time limit.
+   */
+  checkpointing?: { maxRuntime: `${number}s` } | undefined;
   logger?: InngestLogger | undefined;
 }
 
@@ -31,6 +36,7 @@ export function createInngest(config: InngestConfig): Inngest {
     ...(config.signingKey ? { signingKey: config.signingKey } : {}),
     ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
     ...(config.appVersion ? { appVersion: config.appVersion } : {}),
+    ...(config.checkpointing ? { checkpointing: config.checkpointing } : {}),
     ...(config.logger ? { logger: config.logger } : {}),
   });
 }

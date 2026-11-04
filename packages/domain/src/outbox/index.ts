@@ -6,7 +6,7 @@ import { eq, inArray, sql } from "drizzle-orm";
  * Transactional outbox (blueprint Sections 3 and 9). A long operation writes
  * its job row and its outbox event in one transaction; after commit the server
  * delivers the event to Inngest with the outbox key as the event ID, and the
- * one-minute dispatcher cron (Phase 6) re-sends anything still undelivered.
+ * dispatch-outbox cron in Worker A re-sends anything still undelivered.
  * Duplicate delivery is harmless: Inngest drops repeated event IDs.
  */
 

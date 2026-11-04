@@ -4,11 +4,10 @@ import { createJina } from "@foliomind/ai/jina";
 import { EnvValidationError } from "@foliomind/contracts";
 import { createDb } from "@foliomind/db";
 import { connect, createInngest } from "@foliomind/workflows";
-import { createWorkerAFunctions } from "@foliomind/workflows/worker-a";
+import { createFileStore, createWorkerAFunctions } from "@foliomind/workflows/worker-a";
 import { pino } from "pino";
 import { loadEnv, type WorkerEnv } from "./env";
-import { createExtractor } from "./extract";
-import { createFileStore } from "./files";
+import { createWorkerExtractor } from "./extract";
 
 const SERVICE = "foliomind-ingestion";
 
@@ -61,7 +60,7 @@ const functions = createWorkerAFunctions(inngest, {
         timeoutMs: 60_000,
       })
     : null,
-  extract: createExtractor({
+  extract: createWorkerExtractor({
     timeoutMs: env.EXTRACTION_TIMEOUT_MS,
     memoryMb: env.EXTRACTION_MEMORY_MB,
   }),
@@ -83,17 +82,7 @@ const functions = createWorkerAFunctions(inngest, {
 
 logger.info({ functions: functions.length }, "worker booted");
 
-const connection = await connect({
-  apps: [{ client: inngest, functions }],
-  ...(env.WORKER_INSTANCE_ID ? { instanceId: env.WORKER_INSTANCE_ID } : {}),
-  // Section 9 starting limit: ingestion 1 + imports 2 + control 2.
-  maxWorkerConcurrency:
-    env.INGESTION_CONCURRENCY + env.IMPORT_CONCURRENCY + env.CONTROL_CONCURRENCY,
-  // Shutdown is handled below so it is logged and exits with a clear status.
-  handleShutdownSignals: [],
-});
-logger.info({ connectionId: connection.connectionId }, "connected to Inngest");
-
+let connection: Awaited<ReturnType<typeof connect>> | undefined;
 let shuttingDown = false;
 async function shutdown(signal: NodeJS.Signals) {
   if (shuttingDown) return;
@@ -101,7 +90,8 @@ async function shutdown(signal: NodeJS.Signals) {
   logger.info({ signal }, "shutting down");
   try {
     // Stops claiming new work and lets in-flight steps finish (Section 9).
-    await connection.close();
+    // Before the first connection there is nothing to finish.
+    await connection?.close();
     await database.close();
     logger.info("Inngest connection closed");
     process.exit(0);
@@ -111,5 +101,19 @@ async function shutdown(signal: NodeJS.Signals) {
   }
 }
 
+// Registered before connecting: `connect` keeps retrying while Inngest is
+// unreachable, and Node running as PID 1 in a container ignores SIGTERM unless
+// a handler exists, so a later registration leaves the worker unstoppable.
 process.once("SIGTERM", (signal) => void shutdown(signal));
 process.once("SIGINT", (signal) => void shutdown(signal));
+
+connection = await connect({
+  apps: [{ client: inngest, functions }],
+  ...(env.WORKER_INSTANCE_ID ? { instanceId: env.WORKER_INSTANCE_ID } : {}),
+  // Section 9 starting limit: ingestion 1 + imports 2 + control 2.
+  maxWorkerConcurrency:
+    env.INGESTION_CONCURRENCY + env.IMPORT_CONCURRENCY + env.CONTROL_CONCURRENCY,
+  // Shutdown is handled above so it is logged and exits with a clear status.
+  handleShutdownSignals: [],
+});
+logger.info({ connectionId: connection.connectionId }, "connected to Inngest");

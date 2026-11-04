@@ -135,6 +135,9 @@ export function createImportUrlFunction(inngest: Inngest, deps: WorkerADeps) {
             };
           }
           if (!jina) throw new JobFailure("provider_unavailable");
+          // Checked first, so a missing setting doesn't spend a Reader call.
+          const browserless = deps.browserless;
+          if (!browserless) throw new JobFailure("render_failed");
 
           await setImportStatus(db, importId, "fetching");
           const started = performance.now();
@@ -186,7 +189,7 @@ export function createImportUrlFunction(inngest: Inngest, deps: WorkerADeps) {
           }
           let pdf: Uint8Array;
           try {
-            pdf = await renderHtmlToPdf(deps.browserless, html, {
+            pdf = await renderHtmlToPdf(browserless, html, {
               displayHeaderFooter: true,
               ...webSnapshotHeaderFooter(title),
             });

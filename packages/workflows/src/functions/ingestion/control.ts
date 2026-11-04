@@ -9,6 +9,7 @@ import {
   purgeOldIntents,
   purgeOldNotifications,
   queueStalePendingAssets,
+  requeueStalledIngestion,
   unknownFileKeys,
 } from "@foliomind/domain";
 import { cron, type Inngest } from "inngest";
@@ -44,7 +45,14 @@ export function createSendNotificationFunction(inngest: Inngest, deps: WorkerADe
   );
 }
 
-/** Re-sends outbox rows the web app could not deliver right after commit (Section 3). */
+/** An ingestion job this old that never started had its event go unconsumed. */
+const STALLED_INGESTION_MS = 60 * 60 * 1000;
+
+/**
+ * Re-sends outbox rows the web app could not deliver right after commit
+ * (Section 3), and re-queues uploads whose event was delivered while no function
+ * was registered to receive it, such as during a failed sync.
+ */
 export function createDispatchOutboxFunction(inngest: Inngest, deps: WorkerADeps) {
   return inngest.createFunction(
     {
@@ -56,6 +64,16 @@ export function createDispatchOutboxFunction(inngest: Inngest, deps: WorkerADeps
       concurrency: [{ limit: 1 }, controlConcurrency(deps.concurrency.control)],
     },
     async ({ step }) => {
+      const requeued = await step.run(
+        "requeue-stalled-ingestion",
+        async () =>
+          (
+            await requeueStalledIngestion(deps.db, {
+              olderThan: new Date(Date.now() - STALLED_INGESTION_MS),
+              limit: 20,
+            })
+          ).length,
+      );
       let delivered = 0;
       let failed = 0;
       // Bounded: at most five batches of 100 per run.
@@ -67,8 +85,10 @@ export function createDispatchOutboxFunction(inngest: Inngest, deps: WorkerADeps
         failed += result.failed;
         if (result.delivered + result.failed < 100 || result.failed > 0) break;
       }
-      if (delivered + failed > 0) deps.logger.info({ delivered, failed }, "outbox dispatched");
-      return { delivered, failed };
+      if (delivered + failed > 0) {
+        deps.logger.info({ delivered, failed, requeued }, "outbox dispatched");
+      }
+      return { delivered, failed, requeued };
     },
   );
 }

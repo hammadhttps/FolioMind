@@ -42,12 +42,13 @@ export interface WorkerADeps {
   jina: JinaClient | null;
   extract: Extractor;
   files: FileStore;
-  browserless: BrowserlessConfig;
+  /** Null when Browserless isn't configured: imports then fail clearly. */
+  browserless: BrowserlessConfig | null;
   embedding: { model: string; dimension: number };
   /** How stored files are shared (the free UploadThing plan has public files only). */
   fileAcl: "public" | "private";
   concurrency: { ingestion: number; imports: number; control: number };
-  /** Cron schedule of `dispatch-outbox` (Section 9 default: every minute). */
+  /** Cron schedule of `dispatch-outbox` (`OUTBOX_DISPATCH_CRON`; hourly in production). */
   outboxCron: string;
   /** Delete stored files no asset knows about; only where one UploadThing app serves one environment. */
   orphanFileSweep: boolean;

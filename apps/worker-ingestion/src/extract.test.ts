@@ -1,7 +1,7 @@
 import path from "node:path";
 import { processPages } from "@foliomind/workflows/worker-a";
 import { describe, expect, it } from "vitest";
-import { createExtractor } from "./extract";
+import { createWorkerExtractor } from "./extract";
 
 /*
  * The sandboxed extractor against the committed fixtures
@@ -9,7 +9,7 @@ import { createExtractor } from "./extract";
  */
 
 const fixture = (name: string) => path.resolve(import.meta.dirname, "../test/fixtures", name);
-const extract = createExtractor({ timeoutMs: 60_000 });
+const extract = createWorkerExtractor({ timeoutMs: 60_000 });
 const options = { mode: "extract", maxPages: 150 } as const;
 
 describe("extraction child process", () => {
@@ -63,7 +63,7 @@ describe("extraction child process", () => {
   });
 
   it("kills a parse that runs past its time limit", async () => {
-    const slow = createExtractor({ timeoutMs: 1 });
+    const slow = createWorkerExtractor({ timeoutMs: 1 });
     expect(await slow(fixture("151-pages.pdf"), options)).toEqual({
       ok: false,
       code: "extraction_timeout",

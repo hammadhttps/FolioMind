@@ -96,6 +96,41 @@ export const browserlessShape = {
   BROWSERLESS_TOKEN: secret,
 };
 
+/** On Vercel: optional, because only web imports need it. Imports fail clearly without it. */
+export const browserlessOptionalShape = {
+  BROWSERLESS_WS_ENDPOINT: z.url().optional(),
+  BROWSERLESS_TOKEN: secret.optional(),
+};
+
+const concurrency = (fallback: number) => z.coerce.number().int().min(1).max(16).default(fallback);
+
+/** How the background functions run, on the Vercel route or the Docker worker. */
+export const backgroundJobsShape = {
+  // Section 9 starting limits; load-test before raising them.
+  INGESTION_CONCURRENCY: concurrency(1),
+  IMPORT_CONCURRENCY: concurrency(2),
+  CONTROL_CONCURRENCY: concurrency(2),
+  /**
+   * `dispatch-outbox` schedule. The web app delivers events right after
+   * commit, so this sweep only recovers failed sends. Each sweep wakes Neon,
+   * which then stays on for 5 minutes: at 0.25 CU, every 10 minutes would use
+   * about 91 of the free plan's 100 CU-hours a month, while hourly uses about
+   * 15. Section 9's every-minute sweep suits paid plans.
+   */
+  OUTBOX_DISPATCH_CRON: z
+    .string()
+    .regex(/^(TZ=\S+ )?(\S+ ){4}\S+$/, "a five-field cron expression")
+    .default("0 * * * *"),
+  /**
+   * "1" lets cleanup delete stored files no asset row knows about. Only safe
+   * when this environment has its own UploadThing app (Section 25).
+   */
+  ORPHAN_FILE_SWEEP: z.enum(["0", "1"]).default("0"),
+  /** Hard limit and memory cap for the PDF parsing child process. */
+  EXTRACTION_TIMEOUT_MS: z.coerce.number().int().min(10_000).max(600_000).default(120_000),
+  EXTRACTION_MEMORY_MB: z.coerce.number().int().min(128).max(4096).default(512),
+};
+
 export const jinaShape = {
   JINA_API_KEY: secret.optional(),
   JINA_EMBEDDING_MODEL: z.string().min(1).default("jina-embeddings-v5-text-small"),
@@ -144,6 +179,8 @@ export const PRODUCTION_REQUIRED = {
     "AUTH0_MGMT_CLIENT_SECRET",
     "UPLOADTHING_TOKEN",
     "INNGEST_EVENT_KEY",
+    // The web app serves the background functions, so it verifies Inngest's signature.
+    "INNGEST_SIGNING_KEY",
     "JINA_API_KEY",
     "GEMINI_API_KEY",
     "STRIPE_SECRET_KEY",

@@ -1,12 +1,12 @@
 import { uploadThingFileUrl } from "@foliomind/contracts";
-import type { FileStore } from "@foliomind/workflows/worker-a";
 import { UTApi, UTFile } from "uploadthing/server";
+import type { FileStore } from "../functions/ingestion/shared";
 
 /*
- * UploadThing for Worker A (blueprint Section 25): download addresses for
- * stored files, snapshot uploads keyed by an operation `customId` (looked up
- * before re-uploading on retry), deletion and listing for the cleanup sweeps.
- * The free plan stores files with the app's default (public) ACL.
+ * UploadThing for the background functions (blueprint Section 25): download
+ * addresses for stored files, snapshot uploads keyed by an operation `customId`
+ * (looked up before re-uploading on retry), deletion and listing for the
+ * cleanup sweeps. The free plan stores files with the app's default (public) ACL.
  */
 
 export function createFileStore(token: string): FileStore {
@@ -33,7 +33,7 @@ export function createFileStore(token: string): FileStore {
 
     async upload({ name, data, customId }) {
       // The type comes from the .pdf name.
-      const file = new UTFile([data], name, { customId });
+      const file = new UTFile([new Uint8Array(data)], name, { customId });
       const result = await api.uploadFiles(file);
       if (result.error || !result.data) {
         throw new Error(`UploadThing upload failed: ${result.error?.code ?? "unknown"}`);

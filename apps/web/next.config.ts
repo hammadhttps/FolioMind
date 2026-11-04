@@ -17,8 +17,20 @@ const nextConfig: NextConfig = {
     "@foliomind/contracts",
     "@foliomind/db",
     "@foliomind/domain",
+    "@foliomind/pdf",
     "@foliomind/workflows",
   ],
+  // The background functions fork the PDF parser as a separate file, so nothing
+  // imports these and the bundler can't discover them on its own.
+  outputFileTracingIncludes: {
+    "/api/inngest": [
+      "../../packages/workflows/src/ingestion/extract-child.mjs",
+      "./node_modules/pdfjs-dist/package.json",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+      "./node_modules/pdfjs-dist/standard_fonts/**",
+    ],
+  },
   cacheComponents: true,
   partialPrefetching: true,
   // Provider profile pictures (Section 22 rule 7) and public UploadThing files

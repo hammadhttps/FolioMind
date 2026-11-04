@@ -98,7 +98,7 @@ export const fileRouter = {
         return { documentId: null, error: code };
       }
       if (result.eventKey) {
-        // Sent now; the one-minute dispatcher (Phase 6) re-sends anything undelivered.
+        // Sent now; Worker A's dispatch-outbox sweep re-sends anything undelivered.
         await deliverPending(getDb(), (events) => getInngest().send(events), {
           keys: [result.eventKey],
         }).catch(() => {});

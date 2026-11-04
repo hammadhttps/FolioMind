@@ -10,9 +10,11 @@ import type { WorkerADeps } from "./functions/ingestion/shared";
 import { createSystemPingFunction } from "./functions/system-ping";
 
 /*
- * Worker A (`foliomind-ingestion`) functions, blueprint Section 9. Billing sync
- * and reconciliation join in Phase 10. Imported only by the worker, so the web
- * app never bundles parsing, rendering or provider code.
+ * Worker A (`foliomind-ingestion`) functions, blueprint Section 9. Production
+ * serves them from the web app's /api/inngest route on Vercel; the Docker worker
+ * runs the same functions through Connect for local development or a later move.
+ * Only those two entry points import this file, so ordinary web pages never
+ * bundle parsing, rendering or provider code.
  */
 
 export function createWorkerAFunctions(inngest: Inngest, deps: WorkerADeps) {
@@ -35,4 +37,6 @@ export type {
 } from "./functions/ingestion/shared";
 export * from "./ingestion/chunking";
 export * from "./ingestion/extraction";
+export * from "./ingestion/extractor";
+export * from "./ingestion/file-store";
 export * from "./ingestion/pages";
