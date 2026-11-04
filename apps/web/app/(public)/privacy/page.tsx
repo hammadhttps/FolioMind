@@ -23,8 +23,7 @@ export default function PrivacyPage() {
         <p>
           Sign-in is handled by Auth0. Files are stored with UploadThing. Document text is sent to
           Jina AI and Google Gemini to index it and answer your questions. Payments, when available,
-          are handled by Stripe; FolioMind never receives your card details. Browser notifications
-          through PushEngage are optional.
+          are handled by Stripe; FolioMind never receives your card details.
         </p>
       </section>
       <section className="space-y-2">

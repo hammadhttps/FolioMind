@@ -8,7 +8,6 @@ import {
   jinaShape,
   PRODUCTION_REQUIRED,
   productionProblems,
-  pushengageShape,
   rateLimitShape,
   requiresServices,
   resolveAppEnv,
@@ -18,7 +17,6 @@ import {
   variableNamesFromIssues,
 } from "@foliomind/contracts";
 import { createEnv } from "@t3-oss/env-nextjs";
-import { z } from "zod";
 
 /*
  * Web environment (blueprint Section 13). Local infrastructure variables are
@@ -40,15 +38,11 @@ export const env = createEnv({
     ...jinaShape,
     ...geminiShape,
     ...stripeWebShape,
-    ...pushengageShape,
   },
-  client: {
-    NEXT_PUBLIC_PUSHENGAGE_SITE_KEY: z.string().min(1).optional(),
-  },
+  client: {},
   experimental__runtimeEnv: {
     // Vercel integration names (KV_REST_API_*, AUTH0_MANAGEMENT_API_*) fill unset FolioMind names.
     ...aliasedVariables(process.env),
-    NEXT_PUBLIC_PUSHENGAGE_SITE_KEY: process.env.NEXT_PUBLIC_PUSHENGAGE_SITE_KEY,
   },
   emptyStringAsUndefined: true,
   skipValidation,

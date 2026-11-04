@@ -1,8 +1,8 @@
 import "server-only";
 import { createGemini, createJina } from "@foliomind/ai";
-import { requireVariables } from "@foliomind/contracts";
+import { requireVariables, uploadThingFileUrl } from "@foliomind/contracts";
 import { createDb, type DbConnection } from "@foliomind/db";
-import { cacheKeys, createPushEngage, createRedis, createStripe } from "@foliomind/domain";
+import { cacheKeys, createRedis, createStripe } from "@foliomind/domain";
 import { createInngest } from "@foliomind/workflows";
 import { ManagementClient } from "auth0";
 import { UTApi } from "uploadthing/server";
@@ -75,20 +75,10 @@ export const getAuth0Management = lazy(() => {
  * Server-side URL of a stored file on the app's UploadThing domain. It is
  * never sent to a browser: reads go through FolioMind's authorized routes.
  */
-export const storageFileUrl = (() => {
-  let appId: string | undefined;
-  return (fileKey: string): string => {
-    if (!appId) {
-      const { UPLOADTHING_TOKEN } = requireVariables(env, "UploadThing", ["UPLOADTHING_TOKEN"]);
-      const decoded = JSON.parse(Buffer.from(UPLOADTHING_TOKEN, "base64").toString("utf8")) as {
-        appId?: unknown;
-      };
-      if (typeof decoded.appId !== "string") throw new Error("UPLOADTHING_TOKEN has no app ID");
-      appId = decoded.appId;
-    }
-    return `https://${appId}.ufs.sh/f/${encodeURIComponent(fileKey)}`;
-  };
-})();
+export const storageFileUrl = (fileKey: string): string => {
+  const { UPLOADTHING_TOKEN } = requireVariables(env, "UploadThing", ["UPLOADTHING_TOKEN"]);
+  return uploadThingFileUrl(UPLOADTHING_TOKEN, fileKey);
+};
 
 export const getUtApi = lazy(() => {
   const { UPLOADTHING_TOKEN } = requireVariables(env, "UploadThing", ["UPLOADTHING_TOKEN"]);
@@ -113,9 +103,4 @@ export const getJina = lazy(() => {
 export const getGemini = lazy(() => {
   const { GEMINI_API_KEY } = requireVariables(env, "Gemini", ["GEMINI_API_KEY"]);
   return createGemini({ apiKey: GEMINI_API_KEY });
-});
-
-export const getPushEngage = lazy(() => {
-  const { PUSHENGAGE_API_KEY } = requireVariables(env, "PushEngage", ["PUSHENGAGE_API_KEY"]);
-  return createPushEngage({ apiKey: PUSHENGAGE_API_KEY });
 });

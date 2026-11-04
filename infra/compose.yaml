@@ -11,7 +11,7 @@
 #   docker compose -f infra/compose.yaml --profile app up --build
 #
 # Ports bind to 127.0.0.1 only. Tokens come from infra/.env (see .env.example);
-# Auth0, UploadThing, Jina, Gemini, Stripe and PushEngage stay external.
+# Auth0, UploadThing, Jina, Gemini and Stripe stay external.
 name: foliomind
 
 services:

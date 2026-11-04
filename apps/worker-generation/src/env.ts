@@ -12,7 +12,7 @@ import {
 } from "@foliomind/contracts";
 import { z } from "zod";
 
-/** Worker B variables (blueprint Section 13), least privilege: no Auth0, Stripe or PushEngage. */
+/** Worker B variables (blueprint Section 13), least privilege: no Auth0 or Stripe. */
 const schema = z.object({
   ...baseShape,
   ...directDatabaseShape,

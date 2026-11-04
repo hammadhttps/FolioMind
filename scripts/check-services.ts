@@ -15,13 +15,7 @@ import { parseEnv as parseDotenv } from "node:util";
 import { createGemini, createJina } from "@foliomind/ai";
 import { aliasedVariables, resolveAppEnv } from "@foliomind/contracts";
 import { createDb } from "@foliomind/db";
-import {
-  cacheKey,
-  createPushEngage,
-  createRedis,
-  createStripe,
-  isStripeTestKey,
-} from "@foliomind/domain";
+import { cacheKey, createRedis, createStripe, isStripeTestKey } from "@foliomind/domain";
 import { renderHtmlToPdf } from "@foliomind/pdf";
 import { createInngest, systemPingRequested } from "@foliomind/workflows";
 import { UTApi } from "uploadthing/server";
@@ -296,18 +290,6 @@ const checks: Check[] = [
       });
       if (!token.ok) throw new Error(`Management API token request returned HTTP ${token.status}`);
       return `tenant reachable (${issuer}); Management API token issued`;
-    },
-  },
-  {
-    id: "pushengage",
-    service: "PushEngage",
-    requires: () => missing("PUSHENGAGE_API_KEY"),
-    timeoutMs: 15_000,
-    async run(e) {
-      const { count } = await createPushEngage({ apiKey: e.PUSHENGAGE_API_KEY! }).listNotifications(
-        1,
-      );
-      return `authenticated; notifications endpoint returned ${count} item(s)`;
     },
   },
 ];

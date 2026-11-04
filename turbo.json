@@ -22,7 +22,6 @@
         "JINA_*",
         "GEMINI_*",
         "STRIPE_*",
-        "PUSHENGAGE_*",
         "BROWSERLESS_*"
       ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
