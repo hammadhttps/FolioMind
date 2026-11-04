@@ -26,6 +26,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:services": "tsx scripts/check-services.ts",
+    "check:route-trace": "tsx scripts/check-route-trace.ts",
     "promote-admin": "tsx scripts/promote-admin.ts",
     "requeue-ingestion": "tsx scripts/requeue-ingestion.ts"
   },

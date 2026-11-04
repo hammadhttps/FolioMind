@@ -34,6 +34,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm check:route-trace
 
   services:
     name: Local service smoke checks
@@ -112,6 +113,8 @@ jobs:
   docker:
     name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest
+    # A stuck step fails here instead of running to GitHub's 6-hour limit.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -128,12 +131,12 @@ jobs:
           tags: foliomind-${{ matrix.image }}:ci
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
-      # The bundle must start in the production image (Render runs it as is).
-      # Placeholder values only: the worker boots, then retries Inngest.
-      - name: Worker A boots from its image
+      # The bundle must start in the production image and stop cleanly on
+      # SIGTERM. Placeholder values only: the worker boots, then retries Inngest.
+      - name: Worker A boots from its image and stops on SIGTERM
         if: matrix.image == 'ingestion'
         run: |
-          timeout 20 docker run --rm \
+          docker run -d --name worker-a \
             -e APP_ENV=production \
             -e DIRECT_DATABASE_URL=postgres://ci:ci@db.invalid/ci \
             -e UPSTASH_REDIS_REST_URL=https://redis.invalid \
@@ -144,6 +147,9 @@ jobs:
             -e INNGEST_SIGNING_KEY=signkey-prod-ci \
             -e UPLOADTHING_TOKEN=ci \
             -e JINA_API_KEY=ci \
-            foliomind-ingestion:ci > boot.log 2>&1 || true
-          cat boot.log
-          grep -q '"worker booted"' boot.log
+            foliomind-ingestion:ci
+          timeout 60 sh -c 'until docker logs worker-a 2>&1 | grep -q "\"worker booted\""; do sleep 1; done' \
+            || { docker logs worker-a; exit 1; }
+          docker stop --time 10 worker-a
+          docker logs worker-a
+          test "$(docker inspect worker-a --format '{{.State.ExitCode}}')" = "0"
