@@ -48,7 +48,7 @@ A FolioMind name, when set, wins over its alias. Variables the app does not use 
 
 Integration variables are **Sensitive**: `vercel env pull` returns them empty. For local development, copy Auth0 and Stripe values from the provider dashboards (Vercel → Integrations → the integration → open in Auth0/Stripe) into `apps/web/.env.local` (and `STRIPE_SECRET_KEY` into `apps/worker-ingestion/.env`). Locally, Inngest and Upstash keep using the Docker stack. Keys you add yourself in Vercel (Gemini, Jina, UploadThing, database, `RATE_LIMIT_IP_SECRET`) must be ticked for **Preview** too if you want preview deployments, because Preview counts as staging and staging validates them.
 
-The Inngest integration expects a serve endpoint on Vercel; FolioMind's functions run in the workers through Connect, so ignore its sync warnings for the web project. The Render workers (Phase 10) need the Inngest, Upstash and Stripe credentials copied from those dashboards.
+The Inngest integration expects a serve endpoint on Vercel; FolioMind's functions run in the workers through Connect, so ignore its sync warnings for the web project. Worker A runs on Render from Phase 6 (see [render-worker.md](render-worker.md)) and needs the Inngest and Upstash credentials copied from those dashboards; Worker B and Stripe follow in Phases 8 and 10.
 
 ## Services
 
@@ -131,14 +131,6 @@ All `AUTH0_*` variables go in `apps/web/.env.local`. The Google/GitHub OAuth sec
 3. The Pro product and monthly price are created in Phase 10 (`STRIPE_PRO_MONTHLY_PRICE_ID`).
 4. Live payments need a supported business and account configuration; verify eligibility before promising a live Pakistan-based checkout (Section 10). The smoke check refuses live keys outside `APP_ENV=production`.
 
-### PushEngage (opt-in browser notifications, optional)
-
-PushEngage is not required in any environment. Without it, notifications are in-app only; it may be dropped from the project before Phase 6.
-
-1. Create a PushEngage site for your local/staging domain.
-2. Copy the API key (Site Settings → Site Details) → `PUSHENGAGE_API_KEY` (web and Worker A) and the public site key → `NEXT_PUBLIC_PUSHENGAGE_SITE_KEY` (web).
-3. Phase 6 adds the browser SDK and PushEngage's service-worker file; push notifications stay optional for users.
-
 ## Verifying
 
-`pnpm check:services` runs one check per service and prints `service | configured | result | detail`. Services without keys show "not configured" with the variables to set; configured services must pass. Run a subset with `--only=postgres,upstash,inngest,browserless,jina,gemini,uploadthing,stripe,auth0,pushengage`. The Inngest check needs both workers running (`pnpm dev`).
+`pnpm check:services` runs one check per service and prints `service | configured | result | detail`. Services without keys show "not configured" with the variables to set; configured services must pass. Run a subset with `--only=postgres,upstash,inngest,browserless,jina,gemini,uploadthing,stripe,auth0`. The Inngest check needs both workers running (`pnpm dev`).

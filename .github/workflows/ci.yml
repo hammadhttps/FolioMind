@@ -98,6 +98,8 @@ jobs:
           fi
       - name: Domain integration tests (Postgres and Redis)
         run: pnpm --filter @foliomind/domain test
+      - name: Workflow integration tests (ingestion and import on Postgres)
+        run: pnpm --filter @foliomind/workflows test
       - name: Rate-limit tests (Upstash proxy)
         run: pnpm --filter web exec vitest run lib/rate-limit
       - name: Service logs
@@ -122,5 +124,26 @@ jobs:
           context: .
           file: infra/docker/Dockerfile.${{ matrix.image }}
           push: false
+          load: ${{ matrix.image == 'ingestion' }}
+          tags: foliomind-${{ matrix.image }}:ci
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      # The bundle must start in the production image (Render runs it as is).
+      # Placeholder values only: the worker boots, then retries Inngest.
+      - name: Worker A boots from its image
+        if: matrix.image == 'ingestion'
+        run: |
+          timeout 20 docker run --rm \
+            -e APP_ENV=production \
+            -e DIRECT_DATABASE_URL=postgres://ci:ci@db.invalid/ci \
+            -e UPSTASH_REDIS_REST_URL=https://redis.invalid \
+            -e UPSTASH_REDIS_REST_TOKEN=ci \
+            -e BROWSERLESS_WS_ENDPOINT=wss://browserless.invalid \
+            -e BROWSERLESS_TOKEN=ci \
+            -e INNGEST_EVENT_KEY=ci \
+            -e INNGEST_SIGNING_KEY=signkey-prod-ci \
+            -e UPLOADTHING_TOKEN=ci \
+            -e JINA_API_KEY=ci \
+            foliomind-ingestion:ci > boot.log 2>&1 || true
+          cat boot.log
+          grep -q '"worker booted"' boot.log

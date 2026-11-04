@@ -26,7 +26,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:services": "tsx scripts/check-services.ts",
-    "promote-admin": "tsx scripts/promote-admin.ts"
+    "promote-admin": "tsx scripts/promote-admin.ts",
+    "requeue-ingestion": "tsx scripts/requeue-ingestion.ts"
   },
   "devDependencies": {
     "@foliomind/ai": "workspace:*",

@@ -1,0 +1,79 @@
+# Render Blueprint for FolioMind's background workers (blueprint Sections 9 and 13).
+#
+# Worker A (foliomind-ingestion) runs Phase 6's Inngest functions over an
+# outbound Inngest Connect connection, so it needs no public port. Worker B
+# (foliomind-generation) joins in Phase 8.
+#
+# Setup: docs/setup/render-worker.md. Secrets use `sync: false`: Render asks
+# for them once when the Blueprint is created; change them later in the
+# service's Environment tab.
+services:
+  - type: worker
+    name: foliomind-ingestion
+    runtime: docker
+    # Smallest instance (0.5 CPU, 512 MB). Raise it if large PDFs run out of memory.
+    plan: 0.5c-512mb
+    # Keep the worker near Neon, Upstash and Vercel's region.
+    region: virginia
+    dockerfilePath: ./infra/docker/Dockerfile.ingestion
+    dockerContext: .
+    # Section 9: on SIGTERM the worker closes its Connect connection and finishes the current step.
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: checksPass
+    buildFilter:
+      paths:
+        - apps/worker-ingestion/**
+        - packages/**
+        - infra/docker/Dockerfile.ingestion
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - package.json
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      # Neon's direct (non-pooled) connection string for workers.
+      - key: DIRECT_DATABASE_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      # From the Inngest dashboard (production environment): Event Key and Signing Key.
+      - key: INNGEST_EVENT_KEY
+        sync: false
+      - key: INNGEST_SIGNING_KEY
+        sync: false
+      # The same UploadThing app (token) as the Vercel production deployment.
+      - key: UPLOADTHING_TOKEN
+        sync: false
+      - key: JINA_API_KEY
+        sync: false
+      - key: JINA_EMBEDDING_MODEL
+        value: jina-embeddings-v5-text-small
+      - key: JINA_EMBEDDING_DIMENSION
+        value: "1024"
+      # Browserless cloud (Section 26), e.g. wss://production-sfo.browserless.io
+      - key: BROWSERLESS_WS_ENDPOINT
+        sync: false
+      - key: BROWSERLESS_TOKEN
+        sync: false
+      - key: APP_BASE_URL
+        value: https://folio-mind-two.vercel.app
+      # Section 9 starting limits.
+      - key: INGESTION_CONCURRENCY
+        value: "1"
+      - key: IMPORT_CONCURRENCY
+        value: "2"
+      - key: CONTROL_CONCURRENCY
+        value: "2"
+      # Every 10 minutes: within Inngest's free plan (50k executions a month).
+      - key: OUTBOX_DISPATCH_CRON
+        value: "*/10 * * * *"
+      # 1 only if production has its own UploadThing app (Section 25).
+      - key: ORPHAN_FILE_SWEEP
+        value: "0"
+      # Leaves room for the worker itself on a 512 MB instance.
+      - key: EXTRACTION_MEMORY_MB
+        value: "300"
