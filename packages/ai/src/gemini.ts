@@ -1,5 +1,9 @@
 import { ProviderError, isRetryableStatus } from "@foliomind/contracts";
-import { GoogleGenAI, type GenerateContentResponseUsageMetadata } from "@google/genai";
+import {
+  GoogleGenAI,
+  ThinkingLevel,
+  type GenerateContentResponseUsageMetadata,
+} from "@google/genai";
 import { z } from "zod";
 
 const PROVIDER = "Gemini";
@@ -9,6 +13,21 @@ export interface GeminiConfig {
   timeoutMs?: number;
 }
 
+/**
+ * Thinking is on by default at `medium` and counts toward maxOutputTokens: a
+ * 256-token limit at `low` used 241 on thoughts and truncated the answer
+ * (measured 2026-11-05 on gemini-3.6-flash). `minimal` used none. Every call
+ * should choose a level on purpose.
+ */
+export type GeminiThinkingLevel = "minimal" | "low" | "medium" | "high";
+
+const THINKING_LEVELS: Record<GeminiThinkingLevel, ThinkingLevel> = {
+  minimal: ThinkingLevel.MINIMAL,
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
+};
+
 export interface GenerateOptions {
   /** Model IDs are configuration (Section 2), recorded on every AI run. */
   model: string;
@@ -17,16 +36,21 @@ export interface GenerateOptions {
   system?: string;
   temperature?: number;
   maxOutputTokens?: number;
+  thinking?: GeminiThinkingLevel;
   signal?: AbortSignal;
 }
 
 export interface TokenUsage {
   inputTokens: number;
+  /** Text returned to the caller. */
   outputTokens: number;
+  /** Billed at the output rate, on top of `outputTokens`. */
+  thoughtTokens: number;
   totalTokens: number;
 }
 
 export interface TextResult {
+  /** The model that actually served the request, which can differ from the one asked for. */
   model: string;
   text: string;
   usage: TokenUsage;
@@ -38,12 +62,31 @@ export interface StructuredResult<T> {
   usage: TokenUsage;
 }
 
+/** The last item of a text stream. */
+export interface StreamEnd {
+  text: "";
+  usage: TokenUsage;
+  model: string;
+  finishReason: string | undefined;
+}
+
 function toUsage(metadata: GenerateContentResponseUsageMetadata | undefined): TokenUsage {
   return {
     inputTokens: metadata?.promptTokenCount ?? 0,
     outputTokens: metadata?.candidatesTokenCount ?? 0,
+    thoughtTokens: metadata?.thoughtsTokenCount ?? 0,
     totalTokens: metadata?.totalTokenCount ?? 0,
   };
+}
+
+/**
+ * A 429's body says how long to wait: seconds for a per-minute limit, hours for
+ * the free tier's daily one (20 requests per model per project, measured
+ * 2026-11-05). The SDK only passes it along inside the message text.
+ */
+export function retryAfterFrom(message: string): number | undefined {
+  const match = /retryDelay[\\": ]+(\d+(?:\.\d+)?)s/.exec(message);
+  return match ? Number(match[1]) * 1000 : undefined;
 }
 
 function toProviderError(error: unknown): ProviderError {
@@ -53,13 +96,30 @@ function toProviderError(error: unknown): ProviderError {
       ? Number((error as { status: unknown }).status)
       : undefined;
   const message = error instanceof Error ? error.message : String(error);
+  const retryAfterMs = retryAfterFrom(message);
   return new ProviderError(PROVIDER, `${PROVIDER} request failed: ${message}`, {
     ...(status !== undefined && Number.isFinite(status) ? { status } : {}),
     // No HTTP status means a network failure or timeout, which is retryable.
     retryable: status === undefined || !Number.isFinite(status) ? true : isRetryableStatus(status),
+    ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
     cause: error,
   });
 }
+
+/** True when waiting a moment won't help: this model's quota is gone for the day. */
+export function isDailyQuotaError(error: unknown): boolean {
+  return (
+    error instanceof ProviderError &&
+    error.status === 429 &&
+    (error.retryAfterMs ?? 0) > 60 * 60 * 1000
+  );
+}
+
+/** These reject `minimal` with a 400; their lowest level is `low` (measured 2026-11-05). */
+const NO_MINIMAL_THINKING = /^gemini-3\.[78]-flash/;
+
+const thinkingLevelFor = (model: string, level: GeminiThinkingLevel): ThinkingLevel =>
+  THINKING_LEVELS[level === "minimal" && NO_MINIMAL_THINKING.test(model) ? "low" : level];
 
 export function createGemini(config: GeminiConfig) {
   const ai = new GoogleGenAI({
@@ -74,6 +134,9 @@ export function createGemini(config: GeminiConfig) {
       ...(options.maxOutputTokens !== undefined
         ? { maxOutputTokens: options.maxOutputTokens }
         : {}),
+      ...(options.thinking
+        ? { thinkingConfig: { thinkingLevel: thinkingLevelFor(options.model, options.thinking) } }
+        : {}),
       ...(options.signal ? { abortSignal: options.signal } : {}),
     };
   }
@@ -87,7 +150,7 @@ export function createGemini(config: GeminiConfig) {
           config: requestConfig(options),
         });
         return {
-          model: options.model,
+          model: response.modelVersion ?? options.model,
           text: response.text ?? "",
           usage: toUsage(response.usageMetadata),
         };
@@ -96,14 +159,9 @@ export function createGemini(config: GeminiConfig) {
       }
     },
 
-    /** Streams text chunks; the final chunk carries token usage. */
-    async *streamText(
-      options: GenerateOptions,
-    ): AsyncGenerator<{ text: string; usage?: TokenUsage }> {
-      let stream: AsyncGenerator<{
-        text?: string | undefined;
-        usageMetadata?: GenerateContentResponseUsageMetadata | undefined;
-      }>;
+    /** Streams text chunks; the final item carries token usage, the serving model and why it ended. */
+    async *streamText(options: GenerateOptions): AsyncGenerator<{ text: string } | StreamEnd> {
+      let stream: Awaited<ReturnType<typeof ai.models.generateContentStream>>;
       try {
         stream = await ai.models.generateContentStream({
           model: options.model,
@@ -114,15 +172,20 @@ export function createGemini(config: GeminiConfig) {
         throw toProviderError(error);
       }
       let usage: TokenUsage | undefined;
+      let model = options.model;
+      let finishReason: string | undefined;
       try {
         for await (const chunk of stream) {
           if (chunk.usageMetadata) usage = toUsage(chunk.usageMetadata);
+          if (chunk.modelVersion) model = chunk.modelVersion;
+          const reason = chunk.candidates?.[0]?.finishReason;
+          if (reason) finishReason = reason;
           if (chunk.text) yield { text: chunk.text };
         }
       } catch (error) {
         throw toProviderError(error);
       }
-      yield { text: "", usage: usage ?? toUsage(undefined) };
+      yield { text: "", usage: usage ?? toUsage(undefined), model, finishReason };
     },
 
     /**
@@ -135,6 +198,7 @@ export function createGemini(config: GeminiConfig) {
     ): Promise<StructuredResult<z.infer<TSchema>>> {
       let text: string;
       let usage: TokenUsage;
+      let model = options.model;
       try {
         const response = await ai.models.generateContent({
           model: options.model,
@@ -147,6 +211,7 @@ export function createGemini(config: GeminiConfig) {
         });
         text = response.text ?? "";
         usage = toUsage(response.usageMetadata);
+        model = response.modelVersion ?? options.model;
       } catch (error) {
         throw toProviderError(error);
       }
@@ -166,7 +231,7 @@ export function createGemini(config: GeminiConfig) {
           cause: parsed.error,
         });
       }
-      return { model: options.model, data: parsed.data, usage };
+      return { model, data: parsed.data, usage };
     },
 
     /** Model names available to this API key (used by the connectivity check). */
