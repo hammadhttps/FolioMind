@@ -1,17 +1,27 @@
 "use client";
 
-import { isTerminalJobStatus, noteBodySchema, type HighlightColor } from "@foliomind/contracts";
+import {
+  CHAT_SELECTION_MAX_CHARS,
+  isTerminalJobStatus,
+  noteBodySchema,
+  type ChatFocus,
+  type HighlightColor,
+  type MessageView,
+  type QuestionAllowance,
+  type ThreadView,
+} from "@foliomind/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Bookmark, StickyNote } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { answerAsReaderNote, firstCitedPage } from "@/lib/chat/format";
 import { showRateLimitToast } from "@/lib/rate-limit-toast";
 import {
   createAnnotationAction,
@@ -21,7 +31,8 @@ import {
 } from "@/lib/reader/actions";
 import type { AnnotationItem } from "@/lib/reader/view";
 import { AppDialog } from "../app-dialog";
-import { ChatPanel } from "../chat-panel";
+import { ChatConversation } from "../chat/chat-conversation";
+import { useOpenCitation } from "../chat/use-open-citation";
 import { PageHeading } from "../page-heading";
 import { fetchJob, jobQueryKey } from "../processing-status";
 import { AnnotationsPanel } from "../reader/annotations-panel";
@@ -69,21 +80,29 @@ export function ReaderScreen({
   document,
   annotations: initialAnnotations,
   progress,
+  initialPage,
+  chat,
 }: {
   document: ReaderDocument;
   annotations: AnnotationItem[];
   progress: SavedPosition | null;
+  /** From a citation link (`?page=`). */
+  initialPage?: number | undefined;
+  chat?: { threads: ThreadView[]; allowance: QuestionAllowance } | null;
 }) {
   const preview = useIsPreview();
   const wide = useWide();
   const api = useRef<ReaderApi>(null);
+  const readerRef = useRef<HTMLDivElement>(null);
   const [annotations, setAnnotations] = useState(initialAnnotations);
-  const [page, setPage] = useState(progress?.pageNumber ?? 1);
+  const [page, setPage] = useState(initialPage ?? progress?.pageNumber ?? 1);
   const [note, setNote] = useState<{
     anchor: SelectionAnchor | null;
     editing: AnnotationItem | null;
   } | null>(null);
-  const [tab, setTab] = useState("notes");
+  const [tab, setTab] = useState(document.status === "ready" ? "ai" : "notes");
+  const [focus, setFocus] = useState<ChatFocus | null>(null);
+  const [savedAnswers, setSavedAnswers] = useState<ReadonlySet<string>>(new Set());
 
   const router = useRouter();
   const liveJobId = document.status === "processing" && document.job?.live ? document.job.id : null;
@@ -102,7 +121,7 @@ export function ReaderScreen({
 
   const aiUnavailableReason =
     document.status === "ready"
-      ? "Ready for questions. Cited answers about your documents open soon."
+      ? null
       : document.status === "attention"
         ? (document.job?.errorMessage ?? "This document couldn't be prepared for AI answers.")
         : job.data && !jobFinished
@@ -120,13 +139,13 @@ export function ReaderScreen({
     );
   }
 
-  /** Shows the annotation at once, then swaps in the saved one or rolls back. */
+  /** Shows the annotation at once, then swaps in the saved one or rolls back. True when saved. */
   async function create(
     draft: Omit<AnnotationItem, "id" | "createdAt">,
     save: () => Promise<
       { ok: true; data: AnnotationItem } | ({ ok: false } & NonNullable<Failure>) | null
     >,
-  ) {
+  ): Promise<boolean> {
     const temporary: AnnotationItem = {
       ...draft,
       id: `pending-${(pendingId += 1)}`,
@@ -134,11 +153,13 @@ export function ReaderScreen({
     };
     setAnnotations((current) => [...current, temporary]);
     const result = await save().catch(() => null);
-    if (result?.ok) replace(temporary.id, result.data);
-    else {
-      replace(temporary.id, null);
-      reportFailure(result, "We couldn't save that. Please try again.");
+    if (result?.ok) {
+      replace(temporary.id, result.data);
+      return true;
     }
+    replace(temporary.id, null);
+    reportFailure(result, "We couldn't save that. Please try again.");
+    return false;
   }
 
   function highlight(anchor: SelectionAnchor, color: HighlightColor) {
@@ -224,15 +245,53 @@ export function ReaderScreen({
     }
   }
 
+  const goToPage = useCallback(
+    (target: number) => {
+      api.current?.goToPage(target);
+      // Stacked layouts: the page is out of view above the chat.
+      if (!wide) readerRef.current?.scrollIntoView({ block: "start" });
+    },
+    [wide],
+  );
+  const openCitation = useOpenCitation({ currentDocumentId: document.id, goToPage });
+
+  /** Save to notes: a Reader note on the first page the answer cites. */
+  async function saveAnswer(message: MessageView) {
+    if (preview) return;
+    const body = answerAsReaderNote(message);
+    const anchor = { page: firstCitedPage(message.citations) ?? page };
+    setSavedAnswers((current) => new Set(current).add(message.id));
+    const saved = await create(
+      { kind: "note", pageNumber: anchor.page, anchor, body, color: null },
+      () => createAnnotationAction({ kind: "note", documentId: document.id, anchor, body }),
+    );
+    if (saved) {
+      toast.success(`Saved to your notes on page ${anchor.page}.`);
+    } else {
+      setSavedAnswers((current) => {
+        const next = new Set(current);
+        next.delete(message.id);
+        return next;
+      });
+    }
+  }
+
   const reader = (
     <PdfReader
       documentId={document.id}
       highlights={annotations.filter((item) => item.anchor.rects?.length)}
       initialPosition={progress}
+      initialPage={initialPage}
       aiUnavailableReason={aiUnavailableReason}
       onPageChange={(next) => setPage(next)}
       onHighlight={highlight}
       onNote={(anchor) => setNote({ anchor, editing: null })}
+      onAskAboutSelection={(anchor) => {
+        if (anchor.text) {
+          setFocus({ page: anchor.page, text: anchor.text.slice(0, CHAT_SELECTION_MAX_CHARS) });
+          setTab("ai");
+        }
+      }}
       apiRef={api}
       preview={preview}
     />
@@ -258,8 +317,10 @@ export function ReaderScreen({
           onDelete={(annotation) => void remove(annotation)}
         />
       </TabsContent>
-      <TabsContent value="ai" className="min-h-0 flex-1">
-        <ChatPanel
+      {/* Stays mounted, so switching tabs never interrupts an answer. */}
+      <TabsContent value="ai" forceMount className="min-h-0 flex-1 data-[state=inactive]:hidden">
+        <ChatConversation
+          scope={{ kind: "document", documentId: document.id }}
           title="Ask about this document"
           description="Answers cite the pages they come from."
           unavailableReason={aiUnavailableReason}
@@ -268,6 +329,18 @@ export function ReaderScreen({
             "What evidence supports the main argument?",
             "Explain this section in simpler terms.",
           ]}
+          threads={chat?.threads ?? []}
+          allowance={chat?.allowance ?? null}
+          focus={focus}
+          onClearFocus={() => setFocus(null)}
+          onOpenCitation={(citation) => void openCitation(citation)}
+          onSaveToNotes={(message) => void saveAnswer(message)}
+          savedMessageIds={savedAnswers}
+          abstainHelp={
+            <Link href="/dashboard?tab=research" className="underline underline-offset-2">
+              Add sources in a research workspace
+            </Link>
+          }
           className="h-full"
         />
       </TabsContent>
@@ -339,8 +412,10 @@ export function ReaderScreen({
         </ResizablePanelGroup>
       ) : (
         <div className="space-y-5">
-          <div className="h-[72dvh] min-h-[440px]">{reader}</div>
-          <div className="min-h-[420px]">{side}</div>
+          <div ref={readerRef} className="h-[72dvh] min-h-[440px] scroll-mt-20">
+            {reader}
+          </div>
+          <div className="h-[80dvh] min-h-[480px]">{side}</div>
         </div>
       )}
 

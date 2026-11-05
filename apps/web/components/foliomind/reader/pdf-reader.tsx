@@ -81,10 +81,12 @@ export function PdfReader({
   documentId,
   highlights,
   initialPosition,
+  initialPage,
   aiUnavailableReason,
   onPageChange,
   onHighlight,
   onNote,
+  onAskAboutSelection,
   apiRef,
   preview = false,
 }: {
@@ -92,10 +94,14 @@ export function PdfReader({
   /** Annotations that carry rectangles: highlights and selection notes. */
   highlights: AnnotationItem[];
   initialPosition: SavedPosition | null;
-  aiUnavailableReason: string;
+  /** A citation's page, which wins over the saved position. */
+  initialPage?: number | undefined;
+  /** Why the AI can't answer yet; null when it can. */
+  aiUnavailableReason: string | null;
   onPageChange: (page: number, pageCount: number) => void;
   onHighlight: (anchor: SelectionAnchor, color: HighlightColor) => void;
   onNote: (anchor: SelectionAnchor | null) => void;
+  onAskAboutSelection?: (anchor: SelectionAnchor) => void;
   apiRef?: Ref<ReaderApi>;
   preview?: boolean;
 }) {
@@ -316,6 +322,7 @@ export function PdfReader({
         } else {
           viewer.currentScaleValue = "page-width";
         }
+        if (initialPage) viewer.currentPageNumber = Math.min(initialPage, pdf.numPages);
         setPageCount(pdf.numPages);
         setLoadedPdf(pdf);
         setState({ kind: "ready" });
@@ -693,21 +700,35 @@ export function PdfReader({
                 <StickyNote aria-hidden="true" />
                 Add note
               </Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-disabled="true"
-                    className="opacity-60"
-                    onClick={(event) => event.preventDefault()}
-                  >
-                    <MessageSquareText aria-hidden="true" />
-                    Ask about selection
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{aiUnavailableReason}</TooltipContent>
-              </Tooltip>
+              {aiUnavailableReason === null ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onAskAboutSelection?.(selection.anchor);
+                    setSelection(null);
+                  }}
+                >
+                  <MessageSquareText aria-hidden="true" />
+                  Ask about selection
+                </Button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-disabled="true"
+                      className="opacity-60"
+                      onClick={(event) => event.preventDefault()}
+                    >
+                      <MessageSquareText aria-hidden="true" />
+                      Ask about selection
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{aiUnavailableReason}</TooltipContent>
+                </Tooltip>
+              )}
             </div>
           ) : null}
         </div>
