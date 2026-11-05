@@ -4,6 +4,7 @@ import {
   documentPages,
   documents,
   documentVersions,
+  messageCitations,
   uploadIntents,
   type Database,
   type Executor,
@@ -62,6 +63,11 @@ export async function purgeDeletedDocuments(
       pages += (
         await tx.delete(documentPages).where(inArray(documentPages.documentVersionId, versions))
       ).count;
+      // Citations keep their page and title; the source itself is gone for good.
+      await tx
+        .update(messageCitations)
+        .set({ sourceAvailable: false })
+        .where(inArray(messageCitations.sourceVersionId, versions));
       await tx
         .update(assets)
         .set({ state: "deleting", updatedAt: sql`now()` })

@@ -1,4 +1,9 @@
-import { USAGE_METRICS, type UsageMetric } from "@foliomind/contracts";
+import {
+  PLAN_LIMITS,
+  USAGE_METRICS,
+  type QuestionAllowance,
+  type UsageMetric,
+} from "@foliomind/contracts";
 import {
   assets,
   documents,
@@ -268,6 +273,40 @@ export async function expireAbandoned(
     }
     return touched;
   });
+}
+
+/** The composer's discreet count and the upgrade explanation at the limit (Sections 10 and 20). */
+export async function questionAllowance(
+  db: Executor,
+  userId: string,
+  now: Date = new Date(),
+): Promise<QuestionAllowance> {
+  const { planCode, limits, period } = await currentEntitlement(db, userId, now);
+  const [bucket] = await db
+    .select({
+      limit: usageBuckets.limit,
+      used: sql<number>`(${usageBuckets.reserved} + ${usageBuckets.consumed})::bigint`.mapWith(
+        Number,
+      ),
+    })
+    .from(usageBuckets)
+    .where(
+      and(
+        eq(usageBuckets.userId, userId),
+        eq(usageBuckets.metric, "ai_questions"),
+        eq(usageBuckets.periodStart, period.start),
+      ),
+    );
+  const limit = bucket?.limit ?? limits.aiQuestionsPerMonth;
+  const used = bucket?.used ?? 0;
+  return {
+    planCode,
+    used,
+    limit,
+    remaining: Math.max(0, limit - used),
+    proLimit: PLAN_LIMITS.pro.aiQuestionsPerMonth,
+    resetsAt: period.end.toISOString(),
+  };
 }
 
 /** Stored bytes, including exports, of files that are uploading or live (a gauge). */

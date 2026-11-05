@@ -1,15 +1,12 @@
 import {
-  bookRevisions,
-  books,
   collections,
   documents,
-  documentVersions,
   libraryItems,
   projects,
   workspaces,
   type Executor,
 } from "@foliomind/db";
-import { and, eq, exists, isNull, or, sql } from "drizzle-orm";
+import { and, eq, exists, isNull, sql } from "drizzle-orm";
 
 /*
  * Access policy (blueprint Sections 4 and 12). Roles never replace ownership:
@@ -26,45 +23,84 @@ export interface Actor {
 const isActive = (actor: Actor | null): actor is Actor =>
   actor !== null && actor.status === "active";
 
+/** A version the actor may read right now, with what retrieval and citations need. */
+export interface ReadableSource {
+  versionId: string;
+  documentId: string;
+  title: string;
+  status: string;
+  pageCount: number | null;
+  /** The version the Reader shows for this document; a newer one may have replaced it. */
+  isCurrent: boolean;
+  owned: boolean;
+}
+
 /**
- * A document version is readable by its owner while the document is active, or
- * by any signed-in user when an active published book revision references it.
+ * The one statement of the document access rule (Section 12): a version is
+ * readable by its owner while the document is active, or by any signed-in user
+ * when an active published book revision references it. Versions the actor may
+ * not read are simply absent, so callers cannot tell whether they exist.
  */
+export async function readableSources(
+  db: Executor,
+  actor: Actor | null,
+  versionIds: readonly string[],
+): Promise<ReadableSource[]> {
+  if (!isActive(actor) || versionIds.length === 0) return [];
+  const rows = await db.execute<{
+    version_id: string;
+    document_id: string;
+    title: string;
+    status: string;
+    page_count: number | null;
+    is_current: boolean;
+    owned: boolean;
+  }>(sql`
+    select
+      v.id as version_id,
+      v.document_id,
+      coalesce(case when d.owner_id = ${actor.id} then d.title end, published.title, d.title) as title,
+      v.status::text as status,
+      v.page_count,
+      (d.current_version_id = v.id or published.title is not null) as is_current,
+      (d.owner_id = ${actor.id} and d.status = 'active' and d.deleted_at is null) as owned
+    from document_versions v
+    join documents d on d.id = v.document_id
+    left join lateral (
+      select br.title
+      from book_revisions br
+      join books b on b.published_revision_id = br.id
+      where br.document_version_id = v.id
+        and br.status = 'approved'
+        and b.status = 'published'
+        and b.deleted_at is null
+      limit 1
+    ) published on true
+    where v.id in (${sql.join(
+      versionIds.map((id) => sql`${id}::uuid`),
+      sql`, `,
+    )})
+      and (
+        (d.owner_id = ${actor.id} and d.status = 'active' and d.deleted_at is null)
+        or published.title is not null
+      )`);
+  return rows.map((row) => ({
+    versionId: row.version_id,
+    documentId: row.document_id,
+    title: row.title,
+    status: row.status,
+    pageCount: row.page_count === null ? null : Number(row.page_count),
+    isCurrent: row.is_current === true,
+    owned: row.owned === true,
+  }));
+}
+
 export async function canReadDocumentVersion(
   db: Executor,
   actor: Actor | null,
   versionId: string,
 ): Promise<boolean> {
-  if (!isActive(actor)) return false;
-
-  const owned = db
-    .select({ one: sql`1` })
-    .from(documentVersions)
-    .innerJoin(documents, eq(documents.id, documentVersions.documentId))
-    .where(
-      and(
-        eq(documentVersions.id, versionId),
-        eq(documents.ownerId, actor.id),
-        eq(documents.status, "active"),
-        isNull(documents.deletedAt),
-      ),
-    );
-  const published = db
-    .select({ one: sql`1` })
-    .from(bookRevisions)
-    .innerJoin(books, eq(books.publishedRevisionId, bookRevisions.id))
-    .where(
-      and(
-        eq(bookRevisions.documentVersionId, versionId),
-        eq(bookRevisions.status, "approved"),
-        eq(books.status, "published"),
-        isNull(books.deletedAt),
-      ),
-    );
-  const [row] = await db.execute<{ allowed: boolean }>(
-    sql`select ${or(exists(owned), exists(published))} as allowed`,
-  );
-  return row?.allowed === true;
+  return (await readableSources(db, actor, [versionId])).length > 0;
 }
 
 async function ownsRow(db: Executor, query: Parameters<typeof exists>[0]): Promise<boolean> {
