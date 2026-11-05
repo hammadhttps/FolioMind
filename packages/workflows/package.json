@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./next": "./src/next.ts",
     "./worker-a": "./src/worker-a.ts",
-    "./extract-child": "./src/ingestion/extract-child.mjs"
+    "./extract-child": "./src/ingestion/extract-child.mjs",
+    "./chunking": "./src/ingestion/chunking.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -5,7 +5,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./jina": "./src/jina.ts"
+    "./jina": "./src/jina.ts",
+    "./retrieval": "./src/retrieval/index.ts",
+    "./chat": "./src/chat/index.ts",
+    "./prompts": "./src/prompts/index.ts",
+    "./eval": "./src/eval/index.ts",
+    "./pricing": "./src/pricing.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -13,12 +18,17 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "postgres": "^3.4.9",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"
   },
   "dependencies": {
     "@foliomind/contracts": "workspace:*",
+    "@foliomind/db": "workspace:*",
+    "@foliomind/domain": "workspace:*",
     "@google/genai": "^2.32.0",
+    "@upstash/redis": "^1.40.0",
+    "drizzle-orm": "^0.45.4",
     "zod": "^4.6.7"
   }
 }

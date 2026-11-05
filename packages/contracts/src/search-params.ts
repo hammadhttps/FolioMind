@@ -99,6 +99,16 @@ export const librarySearchParamsSchema = z.object({
 
 export type LibrarySearchParams = z.infer<typeof librarySearchParamsSchema>;
 
+export const WORKSPACE_SORTS = ["updated", "name"] as const;
+
+/** Dashboard research tab (Section 24): search by name, recently updated or by name. */
+export const workspaceSearchParamsSchema = z.object({
+  q: searchTerm,
+  sort: z.preprocess(first, z.enum(WORKSPACE_SORTS)).catch("updated"),
+});
+
+export type WorkspaceSearchParams = z.infer<typeof workspaceSearchParamsSchema>;
+
 export function parseSearchParams<T extends z.ZodType>(
   schema: T,
   raw: Record<string, RawParam>,

@@ -27,6 +27,7 @@
     "format:check": "prettier --check .",
     "check:services": "tsx scripts/check-services.ts",
     "check:route-trace": "tsx scripts/check-route-trace.ts",
+    "eval:retrieval": "tsx scripts/eval-retrieval.ts",
     "promote-admin": "tsx scripts/promote-admin.ts",
     "requeue-ingestion": "tsx scripts/requeue-ingestion.ts"
   },
@@ -38,6 +39,8 @@
     "@foliomind/pdf": "workspace:*",
     "@foliomind/workflows": "workspace:*",
     "@types/node": "^24.19.2",
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^3.4.9",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tsx": "^4.23.15",

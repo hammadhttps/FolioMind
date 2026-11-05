@@ -149,6 +149,8 @@ export const geminiShape = {
   GEMINI_API_KEY: secret.optional(),
   GEMINI_CHAT_MODEL: z.string().min(1).default("gemini-3.6-flash"),
   GEMINI_GENERATION_MODEL: z.string().min(1).default("gemini-3.6-flash"),
+  /** Follow-up rewrites and citation checks; quota is per model, so these don't use up answers'. */
+  GEMINI_FAST_MODEL: z.string().min(1).default("gemini-3.5-flash-lite"),
 };
 
 export const stripeSecretShape = {

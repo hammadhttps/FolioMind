@@ -15,6 +15,13 @@
       "when": 1793614927912,
       "tag": "0001_version_sha256_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793824154888,
+      "tag": "0002_chat_citation_support",
+      "breakpoints": true
     }
   ]
 }
