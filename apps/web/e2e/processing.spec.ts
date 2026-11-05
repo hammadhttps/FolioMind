@@ -65,8 +65,10 @@ test("an uploaded PDF is processed, announced and ready for questions", async ({
   await notice.getByRole("link", { name: /Your PDF is ready to read/ }).click();
 
   await expect(page.getByRole("heading", { name: "Processing e2e" })).toBeVisible();
-  await page.getByRole("tab", { name: "Ask AI" }).click();
-  await expect(page.getByText(/Ready for questions/).first()).toBeVisible();
+  // A ready document opens on the chat.
+  await expect(
+    page.getByRole("tabpanel", { name: "Ask AI" }).getByLabel("Your question"),
+  ).toBeEnabled();
 
   // Read state sticks: the bell no longer reports unread notices.
   await expect(page.getByRole("button", { name: "Notifications", exact: true })).toBeVisible({

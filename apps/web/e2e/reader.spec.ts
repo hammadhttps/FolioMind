@@ -86,16 +86,19 @@ test("upload a PDF, read it, annotate it and come back to the same place", async
   await card.getByRole("link", { name: "Field Notes e2e" }).click();
   await expect(page.getByRole("heading", { name: "Field Notes e2e" })).toBeVisible();
   // The first visit compiles the Reader and the PDF.js worker on the dev server.
-  await expect(page.getByText("of 3")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/of 3\b/)).toBeVisible({ timeout: 60_000 });
   // Fit to width: pages never scroll sideways.
   await expect
     .poll(() => page.getByLabel("Document pages").evaluate((el) => el.scrollWidth - el.clientWidth))
     .toBeLessThanOrEqual(1);
   await expect(page.locator('.page[data-page-number="1"] .textLayer span').first()).toBeAttached();
   await page.getByRole("tab", { name: "Ask AI" }).click();
+  // Before processing the chat explains why it's closed; once ready it takes questions.
+  const chat = page.getByRole("tabpanel", { name: "Ask AI" });
   await expect(
-    page
-      .getByText(/AI becomes available once your document is processed|Ready for questions/)
+    chat
+      .getByText(/AI becomes available once your document is processed/)
+      .or(chat.getByRole("button", { name: "Send question" }))
       .first(),
   ).toBeVisible();
   await page.getByRole("tab", { name: /Notes/ }).click();
@@ -146,6 +149,8 @@ test("upload a PDF, read it, annotate it and come back to the same place", async
   await expect.poll(() => savedPage(user.id), { timeout: 20_000 }).toBe(2);
   await page.reload();
   await expect(pageInput(page)).toHaveValue("2", { timeout: 30_000 });
+  // A document that has finished processing by now opens on the chat.
+  await page.getByRole("tab", { name: /Notes/ }).click();
   await expect(
     page.getByRole("list", { name: "Bookmarks, highlights and notes" }).getByRole("listitem"),
   ).toHaveCount(3);

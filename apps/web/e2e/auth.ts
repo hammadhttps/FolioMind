@@ -7,9 +7,11 @@ import { generateSessionCookie } from "@auth0/nextjs-auth0/testing";
 import {
   assets,
   createDb,
+  documentChunks,
   documents,
   documentVersions,
   libraryItems,
+  usageBuckets,
   userPreferences,
   users,
 } from "@foliomind/db";
@@ -135,6 +137,9 @@ export async function deleteTestUsers(ids: readonly string[]) {
         .catch(() => {});
     }
     await db().transaction(async (tx) => {
+      await tx.execute(sql`delete from projects where owner_id = ${id}`);
+      await tx.execute(sql`delete from conversations where user_id = ${id}`);
+      await tx.execute(sql`delete from workspaces where owner_id = ${id}`);
       await tx.execute(sql`delete from collections where user_id = ${id}`);
       await tx.execute(sql`delete from library_items where user_id = ${id}`);
       await tx.execute(sql`delete from annotations where user_id = ${id}`);
@@ -151,6 +156,74 @@ export async function deleteTestUsers(ids: readonly string[]) {
       await tx.delete(users).where(eq(users.id, id));
     });
   }
+}
+
+/**
+ * Gives a seeded document searchable text, one chunk per page. No embeddings are
+ * needed: full-text search finds these, and Jina still reranks them for real.
+ */
+export async function seedChunks(documentId: string, pages: readonly string[]) {
+  const versionId = await currentVersionId(documentId);
+  await db()
+    .insert(documentChunks)
+    .values(
+      pages.map((text, index) => ({
+        documentVersionId: versionId,
+        chunkIndex: index,
+        pageStart: index + 1,
+        pageEnd: index + 1,
+        text,
+        tokenCount: Math.ceil(text.length / 5),
+        contentHash: randomUUID(),
+      })),
+    );
+  await db()
+    .update(documentVersions)
+    .set({ pageCount: pages.length })
+    .where(eq(documentVersions.id, versionId));
+}
+
+/** Uses up `consumed` of this month's AI questions, as earlier questions would have. */
+export async function useUpQuestions(userId: string, consumed: number) {
+  const now = new Date();
+  const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  await db().insert(usageBuckets).values({
+    userId,
+    metric: "ai_questions",
+    periodStart,
+    periodEnd,
+    limit: 30,
+    consumed,
+  });
+}
+
+/** The source versions a project was created with. */
+export async function projectSourceCount(projectId: string): Promise<number> {
+  const [row] = await db().execute<{ count: number }>(
+    sql`select count(*)::int as count from project_sources where project_id = ${projectId}`,
+  );
+  return Number(row?.count ?? 0);
+}
+
+/** The current version of a document, for checks on its citations and sources. */
+export async function currentVersionId(documentId: string): Promise<string> {
+  const [row] = await db()
+    .select({ versionId: documents.currentVersionId })
+    .from(documents)
+    .where(eq(documents.id, documentId));
+  if (!row?.versionId) throw new Error("document has no version");
+  return row.versionId;
+}
+
+/** True when this server can answer: it reads both AI keys from apps/web/.env.local. */
+export function hasAiKeys(): boolean {
+  const file = path.resolve(__dirname, "../.env.local");
+  const local = existsSync(file) ? parseEnv(readFileSync(file, "utf8")) : {};
+  return Boolean(
+    (process.env.GEMINI_API_KEY || local.GEMINI_API_KEY) &&
+    (process.env.JINA_API_KEY || local.JINA_API_KEY),
+  );
 }
 
 /**

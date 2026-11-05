@@ -101,6 +101,8 @@ jobs:
         run: pnpm --filter @foliomind/domain test
       - name: Workflow integration tests (ingestion and import on Postgres)
         run: pnpm --filter @foliomind/workflows test
+      - name: Chat integration tests (retrieval, access and quotas on Postgres)
+        run: pnpm --filter @foliomind/ai test
       - name: Rate-limit tests (Upstash proxy)
         run: pnpm --filter web exec vitest run lib/rate-limit
       - name: Service logs
