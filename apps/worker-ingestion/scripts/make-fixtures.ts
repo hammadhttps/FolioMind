@@ -1,13 +1,15 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { documentByKey } from "@foliomind/ai/eval";
 
 /*
  * Writes the ingestion test fixtures (Phase 6) as hand-built PDFs, so no PDF
  * library is needed: a structured text PDF with running headers and footers,
  * a two-column PDF, a scanned (image-only) PDF, a password-protected PDF, a
- * malformed file and a 151-page PDF. Run with `pnpm --filter worker-ingestion
- * fixtures`; the output is committed under test/fixtures.
+ * malformed file and a 151-page PDF, plus two evaluation documents for the chat
+ * end-to-end tests. Run with `pnpm --filter worker-ingestion fixtures`; the
+ * output is committed under test/fixtures and apps/web/e2e/fixtures.
  */
 
 const OUT = path.resolve(import.meta.dirname, "../test/fixtures");
@@ -252,6 +254,26 @@ function manyPagesPdf(count: number): Buffer {
       },
     ]),
   );
+}
+
+/** An evaluation document (Phase 7) as a real PDF, for end-to-end tests of cited answers. */
+function evaluationPdf(key: string): Buffer {
+  return textPdf(
+    documentByKey(key).pages.map((page) => {
+      const heading: TextRun[] = page.heading
+        ? [{ text: page.heading, size: 18, x: 72, y: 720, bold: true }]
+        : [];
+      return [...heading, ...layout(page.paragraphs, page.heading ? 684 : 720).runs];
+    }),
+  );
+}
+
+const E2E_OUT = path.resolve(import.meta.dirname, "../../web/e2e/fixtures");
+mkdirSync(E2E_OUT, { recursive: true });
+for (const key of ["harbor-plan", "heat-study"]) {
+  const data = evaluationPdf(key);
+  writeFileSync(path.join(E2E_OUT, `${key}.pdf`), data);
+  console.log(`${key}.pdf: ${data.length} bytes`);
 }
 
 mkdirSync(OUT, { recursive: true });
