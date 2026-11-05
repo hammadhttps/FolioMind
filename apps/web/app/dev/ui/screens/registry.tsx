@@ -42,6 +42,8 @@ export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
           counts: { documents: 0, savedBooks: 0, workspaces: 0, projects: 0 },
           continueReading: [],
           allowance: SAMPLE_ALLOWANCE,
+          workspaces: { items: [], nextCursor: null },
+          recentWorkspaces: [],
         }}
       />
     ),
@@ -86,7 +88,21 @@ export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
   "research-workspace": {
     title: "Research workspace",
     shell: "app",
-    render: () => <ResearchWorkspaceScreen />,
+    render: () => (
+      <ResearchWorkspaceScreen
+        workspace={{
+          id: "00000000-0000-4000-8000-000000000301",
+          name: "Sample: Coastal resilience",
+          description: null,
+          sources: [],
+          notes: [],
+          threads: [],
+          allowance: null,
+          sourceLimit: 2,
+          planCode: "free",
+        }}
+      />
+    ),
   },
   "my-projects": { title: "My Projects (empty)", shell: "app", render: () => <MyProjectsScreen /> },
   "my-projects-sample": {

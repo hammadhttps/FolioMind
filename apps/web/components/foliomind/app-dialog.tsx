@@ -38,7 +38,8 @@ export function AppDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
-      <DialogContent className={cn("gap-5 p-6 sm:max-w-[520px]", className)}>
+      {/* Grid children default to their content's width; a long title must truncate instead. */}
+      <DialogContent className={cn("gap-5 p-6 sm:max-w-[520px] [&>*]:min-w-0", className)}>
         <DialogHeader className="gap-1.5">
           <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
           {description ? (

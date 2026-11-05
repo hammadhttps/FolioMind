@@ -2,10 +2,12 @@
 
 import { Bookmark, FilePlus2, FileText, FileUp, Library, Network } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dashboardTabParser } from "@/lib/search-params";
+import type { WorkspaceCardView } from "@/lib/workspaces/view";
 import { BookCard } from "../book-card";
 import { ComingSoonButton } from "../coming-soon";
 import { EmptyState } from "../empty-state";
@@ -14,8 +16,11 @@ import { MetricCard } from "../metric-card";
 import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
 import { ProjectsTable } from "../projects-table";
+import { WorkspaceFormDialog } from "../research/workspace-dialogs";
+import { WorkspaceList, type WorkspaceListData } from "../research/workspace-list";
 import { WelcomeTitle } from "../session-user";
 import { UploadDialog, type UploadAllowanceView } from "../upload-dialog";
+import { WorkspaceCard } from "../workspace-card";
 
 export interface DashboardData {
   counts: { documents: number; savedBooks: number; workspaces: number; projects: number };
@@ -26,13 +31,18 @@ export interface DashboardData {
     pageCount: number | null;
   }[];
   allowance: UploadAllowanceView | null;
+  /** The research tab's first page, for the URL's search and sort. */
+  workspaces: WorkspaceListData;
+  /** "Research in motion": the most recently updated workspaces. */
+  recentWorkspaces: WorkspaceCardView[];
 }
 
 /**
  * Dashboard (Section 20 #6) with the research workspace list as `?tab=research`.
- * Every figure is real; projects and workspaces stay empty until Phases 7–8.
+ * Every figure is real; projects stay empty until Phase 8.
  */
 export function DashboardScreen({ data }: { data: DashboardData | null }) {
+  const router = useRouter();
   const [tab, setTab] = useQueryState("tab", dashboardTabParser);
 
   return (
@@ -183,17 +193,39 @@ export function DashboardScreen({ data }: { data: DashboardData | null }) {
               className="grid content-start gap-4 md:grid-cols-2 lg:grid-cols-1"
             >
               <Panel title="Research in motion" headingLevel="h2" contentClassName="pt-0">
-                <EmptyState
-                  variant="plain"
-                  className="px-0 py-4"
-                  title="No workspaces yet."
-                  description="Start a workspace to compare sources side by side."
-                  actions={
-                    <ComingSoonButton size="sm" variant="outline" reason="Workspaces open soon">
-                      New workspace
-                    </ComingSoonButton>
-                  }
-                />
+                {data && data.recentWorkspaces.length > 0 ? (
+                  <ul className="space-y-3" aria-label="Recent workspaces">
+                    {data.recentWorkspaces.map((workspace) => (
+                      <li key={workspace.id}>
+                        <WorkspaceCard
+                          name={workspace.name}
+                          href={`/dashboard/research/${workspace.id}`}
+                          sourceCount={workspace.sourceCount}
+                          className="p-4"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyState
+                    variant="plain"
+                    className="px-0 py-4"
+                    title="No workspaces yet."
+                    description="Start a workspace to compare sources side by side."
+                    actions={
+                      <WorkspaceFormDialog
+                        trigger={
+                          <Button size="sm" variant="outline">
+                            New workspace
+                          </Button>
+                        }
+                        onCreated={(workspace) =>
+                          router.push(`/dashboard/research/${workspace.id}`)
+                        }
+                      />
+                    }
+                  />
+                )}
               </Panel>
               <figure className="rounded-xl border bg-card p-5 shadow-card">
                 <blockquote className="font-serif text-lg/snug italic">
@@ -208,22 +240,7 @@ export function DashboardScreen({ data }: { data: DashboardData | null }) {
         </TabsContent>
 
         <TabsContent value="research" className="mt-4 space-y-6">
-          <PageHeading
-            as="h2"
-            title={<span className="text-2xl">Make room for a new connection.</span>}
-            description="Compare up to five sources in a workspace and keep your findings together."
-            actions={
-              <ComingSoonButton reason="Workspaces open soon">
-                <Network aria-hidden="true" />
-                New workspace
-              </ComingSoonButton>
-            }
-          />
-          <EmptyState
-            icon={Network}
-            title="No research workspaces yet."
-            description="Create a workspace, add ready documents from your library and ask questions across them."
-          />
+          <WorkspaceList initial={data?.workspaces ?? { items: [], nextCursor: null }} />
         </TabsContent>
       </Tabs>
     </div>

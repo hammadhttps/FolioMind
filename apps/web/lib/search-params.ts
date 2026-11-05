@@ -3,6 +3,7 @@ import {
   LIBRARY_SORTS,
   LIBRARY_STATUSES,
   LIBRARY_TYPES,
+  WORKSPACE_SORTS,
 } from "@foliomind/contracts/search-params";
 import { parseAsArrayOf, parseAsInteger, parseAsString, parseAsStringLiteral } from "nuqs";
 
@@ -24,6 +25,11 @@ export const libraryParsers = {
   status: parseAsStringLiteral(LIBRARY_STATUSES).withDefault("all"),
   collection: parseAsString,
   sort: parseAsStringLiteral(LIBRARY_SORTS).withDefault("opened"),
+};
+
+export const workspaceParsers = {
+  q: parseAsString.withDefault(""),
+  sort: parseAsStringLiteral(WORKSPACE_SORTS).withDefault("updated"),
 };
 
 export const DASHBOARD_TABS = ["overview", "research"] as const;

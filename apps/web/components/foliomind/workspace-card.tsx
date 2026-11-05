@@ -1,5 +1,6 @@
 import { ArrowUpRight, Network } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,7 @@ export function WorkspaceCard({
   sourceCount,
   label,
   updatedLabel,
+  actions,
   className,
 }: {
   name: string;
@@ -17,6 +19,8 @@ export function WorkspaceCard({
   sourceCount: number;
   label?: string | null;
   updatedLabel?: string | null;
+  /** A menu of per-workspace actions; it sits above the card's link. */
+  actions?: ReactNode;
   className?: string;
 }) {
   return (
@@ -25,17 +29,16 @@ export function WorkspaceCard({
         <span className="flex size-10 items-center justify-center rounded-lg bg-research-subtle text-research-subtle-foreground">
           <Network className="size-5" aria-hidden="true" />
         </span>
-        <ArrowUpRight
-          className="size-4 text-muted-foreground group-hover:text-foreground"
-          aria-hidden="true"
-        />
+        {actions ? (
+          <div className="relative z-10 -mt-1 -mr-1">{actions}</div>
+        ) : (
+          <ArrowUpRight
+            className="size-4 text-muted-foreground group-hover:text-foreground"
+            aria-hidden="true"
+          />
+        )}
       </div>
       <div className="min-w-0 space-y-1">
-        {label ? (
-          <p className="truncate text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-            {label}
-          </p>
-        ) : null}
         <h3 className="truncate text-base font-semibold">
           <Link
             href={href}
@@ -44,6 +47,7 @@ export function WorkspaceCard({
             {name}
           </Link>
         </h3>
+        {label ? <p className="line-clamp-2 text-sm text-muted-foreground">{label}</p> : null}
         <p className="text-sm text-muted-foreground">
           {sourceCount === 1 ? "1 source" : `${sourceCount} sources`}
           {updatedLabel ? ` · ${updatedLabel}` : null}
