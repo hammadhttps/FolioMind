@@ -18,14 +18,15 @@ export const RETRIEVAL = {
   /** Evidence tokens per question, using the chunker's estimate. */
   contextTokenBudget: 6000,
   /**
-   * The best rerank score below which no passage is treated as relevant, so
-   * FolioMind says so without asking Gemini. jina-reranker-v3.5 scores are not
-   * bounded to 0–1: unrelated text scores below zero. Tuned with the evaluation
-   * on 2026-11-05: answerable questions never scored under 0.15, including broad
-   * comparisons, and off-topic ones scored 0.07 or lower. Near-topic questions
-   * score high whatever the threshold, so the model handles those.
+   * The best rerank score below which a question is clearly unrelated, so FolioMind
+   * says so without asking Gemini. jina-reranker-v3.5 scores aren't bounded to 0-1.
+   * Measured 2026-11-07: unrelated questions score -0.09 to -0.18, specific ones
+   * 0.14 to 0.75, and broad ones such as "summarize this" only -0.10 to 0.20,
+   * because no single passage matches them. So this stays low: refusing a good
+   * question is much worse than one extra Gemini request, and the model reports
+   * anything the passages don't answer. A cutoff of 0.1 refused most summaries.
    */
-  abstainScore: 0.1,
+  abstainScore: -0.1,
   /** Past `minPassages`, passages under this are left out. Below zero means unrelated. */
   passageFloor: 0,
   /** Each source in scope keeps this many passages, whatever they score. */

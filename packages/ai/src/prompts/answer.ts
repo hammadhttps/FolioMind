@@ -16,6 +16,7 @@ Evidence rules:
 - Use only what the passages state. Do not use outside knowledge, even if you are sure of it.
 - Put the label of the passage right after each claim it supports, like this: [S2]. For several passages write [S1][S3]. Always use square brackets, never parentheses, and use only labels that appear in the evidence.
 - If the passages answer only part of the question, answer that part with citations and say plainly what is missing.
+- A broad request, such as a summary, the key ideas or an explanation, is answered from the passages you were given: summarize what they cover, with citations. Passages are excerpts, so "this chapter" or "this section" means them. Do not report missing evidence just because you can't see the whole document.
 - If the passages do not answer the question at all, reply with ${INSUFFICIENT_EVIDENCE} followed by one or two sentences saying what is missing, without citations.
 - Never state a confidence score or percentage about your own answer.
 

@@ -8,7 +8,7 @@
 
 import { almanacDistrict, type AlmanacDistrict } from "./documents";
 
-export type EvalKind = "single" | "comparison" | "unanswerable" | "adversarial";
+export type EvalKind = "single" | "broad" | "comparison" | "unanswerable" | "adversarial";
 
 export interface EvalQuestion {
   id: string;
@@ -261,6 +261,28 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     expected: [{ document: "sleep-review", pages: [4] }],
     answerable: true,
     mustMention: [["no measurable", "no effect", "did not", "not "]],
+  },
+
+  /*
+   * --- Broad requests -----------------------------------------------------
+   * These must be answered, not refused. Their rerank scores are low because no
+   * single passage matches them, which once made FolioMind say "not found".
+   */
+  {
+    id: "broad-key-ideas",
+    kind: "broad",
+    question: "Summarize the key ideas of this chapter.",
+    scope: ["ledger-handbook"],
+    expected: [],
+    answerable: true,
+  },
+  {
+    id: "broad-about",
+    kind: "broad",
+    question: "What is this document about?",
+    scope: ["sleep-review"],
+    expected: [],
+    answerable: true,
   },
 
   /* --- A long document of near-identical pages ------------------------ */

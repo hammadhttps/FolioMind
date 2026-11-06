@@ -18,7 +18,7 @@ describe("the evaluation set", () => {
   it("has 30–50 questions with every kind represented (Section 8)", () => {
     expect(EVAL_QUESTIONS.length).toBeGreaterThanOrEqual(30);
     expect(EVAL_QUESTIONS.length).toBeLessThanOrEqual(50);
-    for (const kind of ["single", "comparison", "unanswerable", "adversarial"]) {
+    for (const kind of ["single", "broad", "comparison", "unanswerable", "adversarial"]) {
       expect(EVAL_QUESTIONS.some((question) => question.kind === kind)).toBe(true);
     }
   });

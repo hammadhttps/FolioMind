@@ -65,7 +65,7 @@ async function addChunk(
   return row!.id;
 }
 
-/** Scores a passage by shared words; words in `irrelevant` score far below zero. */
+/** Scores a passage by shared words; a passage sharing none is clearly unrelated. */
 function fakeJina(overrides: Partial<JinaClient> = {}): JinaClient {
   return {
     embed: vi.fn(async (texts: readonly string[]) => ({
@@ -80,7 +80,7 @@ function fakeJina(overrides: Partial<JinaClient> = {}): JinaClient {
         .map((text, index) => {
           const words = query.toLowerCase().match(/[a-z]{4,}/g) ?? [];
           const hits = words.filter((word) => text.toLowerCase().includes(word)).length;
-          return { index, relevanceScore: hits > 0 ? 0.3 + hits / 10 : -0.1 };
+          return { index, relevanceScore: hits > 0 ? 0.3 + hits / 10 : -0.3 };
         })
         .sort((a, b) => b.relevanceScore - a.relevanceScore),
       usage: { totalTokens: 50 },

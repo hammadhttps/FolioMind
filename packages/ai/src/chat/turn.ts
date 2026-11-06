@@ -368,6 +368,15 @@ export async function* runChatTurn(
     signal.throwIfAborted();
 
     if (shouldAbstain(metadata)) {
+      deps.log?.("chat.abstained", {
+        conversationId: conversation.id,
+        by: "threshold",
+        topScore: metadata.topScore,
+        mergedCandidates: metadata.mergedCandidates,
+        selectedPassages: metadata.selectedPassages,
+        embeddingFailed: metadata.embeddingFailed,
+        rerankFailed: metadata.rerankFailed,
+      });
       answerText = {
         body: abstentionMessage(turn.scopeKind),
         citations: [],
@@ -406,6 +415,14 @@ export async function* runChatTurn(
       signal.throwIfAborted();
       if (!result.text) throw new EmptyAnswerError();
 
+      if (result.insufficient) {
+        deps.log?.("chat.abstained", {
+          conversationId: conversation.id,
+          by: "model",
+          topScore: metadata.topScore,
+          selectedPassages: metadata.selectedPassages,
+        });
+      }
       answerText = result.insufficient
         ? { body: result.text, citations: [], unknownLabels: [] }
         : mapCitations(result.text, passages);

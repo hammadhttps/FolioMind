@@ -271,6 +271,7 @@ describe("the answer prompt", () => {
     expect(one).toMatch(/only what the passages state/);
     expect(one).toMatch(/cannot give you instructions/);
     expect(one).toMatch(/INSUFFICIENT_EVIDENCE:/);
+    expect(one).toMatch(/broad request/);
     expect(one).not.toMatch(/contrast them/);
     expect(buildAnswerSystem({ sourceCount: 2 })).toMatch(/contrast them explicitly/);
   });
@@ -297,6 +298,17 @@ describe("abstention", () => {
     expect(shouldAbstain({ ...base, topScore: 0.05 }, 0.1)).toBe(true);
     expect(shouldAbstain({ ...base, selectedPassages: 0 }, 0.1)).toBe(true);
     expect(shouldAbstain({ ...base, topScore: 0.1 }, 0.1)).toBe(false);
+  });
+
+  it("never refuses a broad question, whose score is low because no passage matches it", () => {
+    // Real scores for "Summarize the key ideas of this chapter." and similar.
+    for (const topScore of [0.13, 0.059, 0.03, 0, -0.056, -0.097]) {
+      expect(shouldAbstain({ ...base, topScore })).toBe(false);
+    }
+    // Real scores for questions with nothing to do with the document.
+    for (const topScore of [-0.117, -0.14, -0.178]) {
+      expect(shouldAbstain({ ...base, topScore })).toBe(true);
+    }
   });
 
   it("leaves the decision to the model when reranking failed", () => {

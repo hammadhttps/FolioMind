@@ -219,7 +219,7 @@ export function summarize(results: readonly QuestionResult[]): EvalSummary {
     result.timings.firstTokenMs === null ? [] : [result.timings.firstTokenMs],
   );
   const total = results.reduce((sum, result) => sum + result.costUsd, 0);
-  const byKind = { single: 0, comparison: 0, unanswerable: 0, adversarial: 0 };
+  const byKind = { single: 0, broad: 0, comparison: 0, unanswerable: 0, adversarial: 0 };
   for (const result of results) byKind[result.question.kind] += 1;
 
   return {
