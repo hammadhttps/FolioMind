@@ -57,6 +57,8 @@ jobs:
       - name: Start Postgres, Redis, Upstash proxy and Browserless
         run: docker compose -f infra/compose.yaml up -d --wait postgres redis upstash-http browserless
       - run: pnpm check:services --only=postgres,upstash,browserless
+      - name: Render both PDF Studio templates in Chromium
+        run: pnpm --filter @foliomind/pdf test
       - name: Service logs
         if: failure()
         run: docker compose -f infra/compose.yaml logs --tail=100

@@ -1,6 +1,6 @@
 # Background jobs on Vercel
 
-FolioMind's background jobs process uploaded PDFs, import web articles, write in-app notifications and run the outbox and cleanup sweeps (blueprint Section 9). They run on Vercel, in the same project as the website, so there is no separate server to host or pay for.
+FolioMind's background jobs process uploaded PDFs, import web articles, write PDF Studio's outlines and drafts, render exports, write in-app notifications and run the outbox and cleanup sweeps (blueprint Section 9). They run on Vercel, in the same project as the website, so there is no separate server to host or pay for.
 
 ## How it works
 
@@ -18,11 +18,13 @@ The Vercel project already has the Inngest, UploadThing, Jina and Neon settings,
    - `BROWSERLESS_TOKEN`: the token
 3. Redeploy: on **Deployments**, open the latest one's **⋯** menu and choose **Redeploy**.
 
-Without these two values, importing an article fails with "We couldn't make a PDF of that page." Uploads and everything else keep working.
+Without these two values, importing an article fails with "We couldn't make a PDF of that page.", and exporting a project fails with "We couldn't render this PDF." Uploads and everything else keep working.
+
+Exports and imports both open Browserless sessions. Browserless's plan must allow `GENERATION_CONCURRENCY` (default 1) plus `IMPORT_CONCURRENCY` (default 2) at once; when it's full, the step waits and retries.
 
 ## Check that it's working
 
-- **Inngest dashboard:** in the **Production** environment, open **Apps**. `foliomind-ingestion` should be listed, with six functions.
+- **Inngest dashboard:** in the **Production** environment, open **Apps**. `foliomind-ingestion` should be listed, with ten functions: Worker A's six and PDF Studio's four (`generate-outline`, `generate-draft`, `regenerate-section`, `render-export`). Inngest also lists each one's failure handler.
 - **On the site:** upload a small PDF. The card should go from **Processing** through its phases to **Ready**, and the bell should show "Your PDF is ready to read."
 
 ## After changing the functions
@@ -47,7 +49,7 @@ Scheduled work is deliberately infrequent. Each sweep wakes the database, and ru
 
 ## Local development
 
-`pnpm dev` runs the same functions in the Docker worker (`apps/worker-ingestion`), connected to the local Inngest Dev Server. Nothing extra is needed.
+`pnpm dev` runs the same functions in the Docker-free workers (`apps/worker-ingestion` and `apps/worker-generation`), connected to the local Inngest Dev Server. Nothing extra is needed. [PDF Studio](pdf-studio.md) explains how to keep local testing from spending the Gemini requests the live site shares.
 
 ## If it ever outgrows Vercel
 
