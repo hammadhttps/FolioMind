@@ -6,6 +6,7 @@ import {
   filesToDelete,
   markAssetsDeleted,
   purgeDeletedDocuments,
+  purgeDeletedProjects,
   purgeOldIntents,
   purgeOldNotifications,
   queueStalePendingAssets,
@@ -121,6 +122,9 @@ export function createCleanupMaintenanceFunction(inngest: Inngest, deps: WorkerA
         }
         return totals;
       });
+      const purgedProjects = await step.run("purge-deleted-projects", () =>
+        purgeDeletedProjects(db),
+      );
       const staleAssets = await step.run("queue-stale-pending-assets", () =>
         queueStalePendingAssets(db),
       );
@@ -158,6 +162,7 @@ export function createCleanupMaintenanceFunction(inngest: Inngest, deps: WorkerA
         intents,
         reservations,
         purged,
+        purgedProjects,
         staleAssets,
         removedFiles,
         orphanFiles,
