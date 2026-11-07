@@ -313,3 +313,95 @@
 .fm-highlight[data-color="lavender"] {
   background: var(--highlight-lavender);
 }
+
+/* PDF Studio's document on the warm paper (Sections 15 and 19): same ink in both themes. */
+.fm-doc {
+  font-family: var(--font-serif), Georgia, serif;
+}
+.fm-doc h1,
+.fm-doc h2,
+.fm-doc h3 {
+  font-weight: 600;
+  line-height: 1.25;
+}
+.fm-doc h1 {
+  font-size: 1.625rem;
+  margin: 1.5rem 0 0.75rem;
+}
+.fm-doc h2 {
+  font-size: 1.375rem;
+  margin: 1.5rem 0 0.625rem;
+}
+.fm-doc h3 {
+  font-size: 1.125rem;
+  margin: 1.25rem 0 0.5rem;
+}
+.fm-doc > :first-child {
+  margin-top: 0;
+}
+.fm-doc p {
+  margin: 0 0 0.75rem;
+}
+.fm-doc ul,
+.fm-doc ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.5rem;
+}
+.fm-doc ul {
+  list-style: disc;
+}
+.fm-doc ol {
+  list-style: decimal;
+}
+.fm-doc li > p {
+  margin-bottom: 0.25rem;
+}
+.fm-doc table {
+  width: 100%;
+  margin: 0.75rem 0 1rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--font-sans), Arial, sans-serif;
+  font-size: 0.875rem;
+}
+.fm-doc th,
+.fm-doc td {
+  border: 1px solid rgb(31 41 55 / 0.25);
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.fm-doc th {
+  font-weight: 600;
+  background: rgb(31 41 55 / 0.06);
+}
+.fm-doc th p,
+.fm-doc td p {
+  margin: 0;
+}
+.fm-doc .selectedCell {
+  background: rgb(67 56 202 / 0.12);
+}
+.fm-doc .fm-cite {
+  margin-left: 0.15em;
+  padding: 0.05em 0.25em;
+  border-radius: 0.25rem;
+  background: rgb(67 56 202 / 0.1);
+  color: #3730a3;
+  font-family: var(--font-sans), Arial, sans-serif;
+  font-size: 0.72em;
+  font-weight: 600;
+  vertical-align: 0.15em;
+  cursor: pointer;
+}
+.fm-doc .fm-cite.ProseMirror-selectednode {
+  outline: 2px solid #4338ca;
+}
+.fm-doc p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: rgb(31 41 55 / 0.55);
+  pointer-events: none;
+}

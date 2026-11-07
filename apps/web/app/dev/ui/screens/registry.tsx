@@ -22,6 +22,8 @@ import {
   SAMPLE_LIBRARY,
   SAMPLE_PROJECTS,
   SAMPLE_PUBLISHER,
+  SAMPLE_STUDIO_DRAFT,
+  SAMPLE_STUDIO_EMPTY,
   SAMPLE_SIGN_IN_METHODS,
 } from "../sample-data";
 
@@ -44,6 +46,7 @@ export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
           allowance: SAMPLE_ALLOWANCE,
           workspaces: { items: [], nextCursor: null },
           recentWorkspaces: [],
+          recentProjects: [],
         }}
       />
     ),
@@ -108,9 +111,22 @@ export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
   "my-projects-sample": {
     title: "My Projects (sample rows)",
     shell: "app",
-    render: () => <MyProjectsScreen projects={SAMPLE_PROJECTS} />,
+    render: () => (
+      <MyProjectsScreen
+        page={{ items: SAMPLE_PROJECTS, nextCursor: null, prevCursor: null, pageSize: 20 }}
+      />
+    ),
   },
-  "pdf-studio": { title: "PDF Studio", shell: "app", render: () => <PdfStudioScreen /> },
+  "pdf-studio": {
+    title: "PDF Studio (empty)",
+    shell: "app",
+    render: () => <PdfStudioScreen initial={SAMPLE_STUDIO_EMPTY} />,
+  },
+  "pdf-studio-draft": {
+    title: "PDF Studio (sample draft)",
+    shell: "app",
+    render: () => <PdfStudioScreen initial={SAMPLE_STUDIO_DRAFT} />,
+  },
   publishing: { title: "Publishing", shell: "app", render: () => <PublishingScreen /> },
   settings: {
     title: "Settings",

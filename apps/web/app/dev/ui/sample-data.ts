@@ -6,6 +6,7 @@ import type { CollectionView } from "@/components/foliomind/screens/my-library";
 import type { SignInMethodView } from "@/components/foliomind/screens/settings";
 import type { UploadAllowanceView } from "@/components/foliomind/upload-dialog";
 import type { LibraryCard } from "@/lib/library/view";
+import type { StudioState } from "@foliomind/contracts";
 import type { SessionUser } from "@/lib/auth/types";
 
 /*
@@ -180,4 +181,88 @@ export const SAMPLE_PUBLISHER: PublisherProfile = {
     "Sample biography for layout review. Real profiles show the publisher's own description.",
   website: "https://example.com",
   books: SAMPLE_BOOKS.slice(0, 3),
+};
+
+const SAMPLE_VERSION = "00000000-0000-4000-8000-0000000000a1";
+const SAMPLE_SECTIONS = [
+  "00000000-0000-4000-8000-0000000000b1",
+  "00000000-0000-4000-8000-0000000000b2",
+  "00000000-0000-4000-8000-0000000000b3",
+] as const;
+
+export const SAMPLE_STUDIO_EMPTY: StudioState = {
+  id: "00000000-0000-4000-8000-0000000000c1",
+  title: "Sample: Urban heat report",
+  mode: "research",
+  status: "draft",
+  prompt: "",
+  settings: { audience: "", length: "medium", pageSize: "A4", cover: false, contents: false },
+  template: "academic-report",
+  outline: [],
+  revisionCounter: 0,
+  content: { type: "doc", content: [] },
+  archived: false,
+  firstDraftDone: false,
+  sources: [{ versionId: SAMPLE_VERSION, title: "Sample: Harbor plan", available: true }],
+  proposals: [],
+  job: null,
+  revisions: [],
+  exports: [],
+  allowance: {
+    planCode: "free",
+    projects: { used: 0, limit: 2 },
+    regenerations: { used: 0, limit: 10 },
+    reexports: { used: 0, limit: 10 },
+    resetsAt: "2030-01-01T00:00:00.000Z",
+  },
+  charges: { outline: "project", draft: "none" },
+};
+
+export const SAMPLE_STUDIO_DRAFT: StudioState = {
+  ...SAMPLE_STUDIO_EMPTY,
+  status: "editing",
+  prompt: "Sample: a report on urban heat for first-year students.",
+  firstDraftDone: true,
+  revisionCounter: 3,
+  outline: [
+    { id: SAMPLE_SECTIONS[0], heading: "Sample: Why cities run hot", notes: "Causes." },
+    { id: SAMPLE_SECTIONS[1], heading: "Sample: What cools a street", notes: "Measures." },
+    { id: SAMPLE_SECTIONS[2], heading: "Sample: Where to start", notes: "Priorities." },
+  ],
+  content: {
+    type: "doc",
+    content: [
+      {
+        type: "heading",
+        attrs: { level: 2, sectionId: SAMPLE_SECTIONS[0] },
+        content: [{ type: "text", text: "Sample: Why cities run hot" }],
+      },
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "This is labelled sample text for the dev gallery" },
+          {
+            type: "citation",
+            attrs: {
+              label: "1",
+              chunkId: null,
+              versionId: SAMPLE_VERSION,
+              pageStart: 3,
+              pageEnd: 3,
+              draftHash: null,
+            },
+          },
+          { type: "text", text: "." },
+        ],
+      },
+    ],
+  },
+  revisions: [
+    {
+      id: "00000000-0000-4000-8000-0000000000d1",
+      revisionNo: 1,
+      createdAt: "2030-01-01T00:00:00.000Z",
+    },
+  ],
+  charges: { outline: "regeneration", draft: "regeneration" },
 };

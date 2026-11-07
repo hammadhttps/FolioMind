@@ -1,130 +1,185 @@
-import { Bold, Check, FileDown, Italic, List, ListTree, Pencil } from "lucide-react";
-import type { ReactNode } from "react";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
-import { Toggle } from "@/components/ui/toggle";
-import { ComingSoonButton } from "../coming-soon";
+"use client";
+
+import {
+  docHasText,
+  EMPTY_PROJECT_DOC,
+  type ProjectDoc,
+  type StudioState,
+} from "@foliomind/contracts";
+import { ArchiveRestore, Pencil } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { setProjectArchivedAction } from "@/lib/projects/actions";
+import { showRateLimitToast } from "@/lib/rate-limit-toast";
 import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
-import { Paper } from "../paper";
+import { RenameProjectDialog } from "../projects/project-row-actions";
+import { StatusAlert } from "../status-alert";
+import { SectionProposals } from "../studio/section-proposals";
+import type { EditorHandle } from "../studio/studio-editor";
+import { StudioExport, StudioPreview } from "../studio/studio-export";
+import { StudioHistory } from "../studio/studio-history";
+import { StudioJob } from "../studio/studio-job";
+import { StudioOutline } from "../studio/studio-outline";
+import { StudioSettings } from "../studio/studio-settings";
+import { StudioSources } from "../studio/studio-sources";
+import { isLiveJob, useStudio } from "../studio/use-studio";
+
+const StudioEditor = dynamic(() => import("../studio/studio-editor"), {
+  ssr: false,
+  loading: () => <Skeleton className="h-[640px] w-full rounded-xl" />,
+});
+
+const AI_LABEL = "AI generated, not grounded in your sources";
 
 /**
- * PDF Studio (Section 20 #11): "Shape your document" rail and the warm-paper
- * editor. Outline approval, drafting and export arrive in Phase 8; the explicit
- * approval step stays in the layout.
+ * PDF Studio (Section 20 #11): the "Shape your document" rail and the warm-paper
+ * editor. Outline, explicit approval, draft, edits, revisions, then an export of
+ * one exact revision. The editor is read-only only while a draft is being written.
  */
-export function PdfStudioScreen() {
+export function PdfStudioScreen({ initial }: { initial: StudioState }) {
+  const router = useRouter();
+  const studio = useStudio(initial);
+  const { state, refresh, counterRef, preview } = studio;
+  const editor = useRef<EditorHandle | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  const [doc, setDoc] = useState<ProjectDoc>(initial.content ?? EMPTY_PROJECT_DOC);
+
+  // The poll only carries the document when it changed.
+  useEffect(() => {
+    if (state.content && state.revisionCounter > counterRef.current) setDoc(state.content);
+  }, [state.content, state.revisionCounter, counterRef]);
+
+  const onChange = useCallback((next: ProjectDoc) => setDoc(next), []);
+  const onRevisionSaved = useCallback(() => void refresh(), [refresh]);
+  const onSaved = useCallback(() => {
+    // A first edit moves the status on, so the chip and the charges catch up now and then.
+    if (state.status !== "editing") void refresh();
+  }, [refresh, state.status]);
+
+  const flushEditor = useCallback(async () => (await editor.current?.flush()) ?? true, []);
+
+  const live = isLiveJob(state.job);
+  const drafting = state.status === "drafting" || (live && state.job?.kind === "generate-draft");
+  const hasDraft = docHasText(doc) || state.firstDraftDone;
+  const sourcesBlocked =
+    state.mode === "research" &&
+    (state.sources.length === 0 || state.sources.some((source) => !source.available));
+
+  async function restore() {
+    const result = await setProjectArchivedAction({ projectId: state.id, archived: false }).catch(
+      () => null,
+    );
+    if (result?.ok) {
+      await refresh();
+      return;
+    }
+    if (result?.code === "rate_limited") showRateLimitToast(result.retryAfterSeconds);
+    else toast.error("We couldn't restore this project. Please try again.");
+  }
+
   return (
     <div className="space-y-5">
       <PageHeading
-        title="PDF Studio"
+        title={state.title}
         description="Describe your document, approve an outline, then edit the draft it becomes."
         actions={
           <>
-            <ComingSoonButton variant="outline" reason="Projects open soon">
+            <Button variant="outline" disabled={preview} onClick={() => setRenaming(true)}>
               <Pencil aria-hidden="true" />
               Rename
-            </ComingSoonButton>
-            <ComingSoonButton reason="Export opens soon">
-              <FileDown aria-hidden="true" />
-              Export PDF
-            </ComingSoonButton>
+            </Button>
+            <StudioPreview
+              state={state}
+              editor={editor}
+              disabled={preview || drafting || !docHasText(doc)}
+            />
+            <StudioExport
+              studio={studio}
+              editor={editor}
+              disabled={preview || live || state.archived || !docHasText(doc)}
+            />
           </>
         }
       />
 
+      <RenameProjectDialog
+        projectId={state.id}
+        title={state.title}
+        open={renaming}
+        onOpenChange={setRenaming}
+        onRenamed={() => {
+          void refresh();
+          router.refresh();
+        }}
+      />
+
+      {state.archived ? (
+        <StatusAlert
+          tone="info"
+          title="This project is archived."
+          action={
+            <Button size="sm" variant="outline" onClick={() => void restore()}>
+              <ArchiveRestore aria-hidden="true" />
+              Restore
+            </Button>
+          }
+        >
+          Restore it to keep working. You can still read it and download its exports.
+        </StatusAlert>
+      ) : null}
+
+      {state.mode === "general" ? (
+        <StatusAlert tone="warning" title={AI_LABEL}>
+          This document is written from general knowledge and has no source citations. Check its
+          facts before relying on them.
+        </StatusAlert>
+      ) : null}
+
+      <StudioJob studio={studio} />
+
       <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Panel title="Shape your document" contentClassName="space-y-5 pt-0">
-          <div className="grid gap-1.5">
-            <Label htmlFor="studio-prompt">What should this document cover?</Label>
-            <Textarea
-              id="studio-prompt"
-              disabled
-              rows={4}
-              placeholder="For example: a study guide on urban heat islands for first-year students."
-              className="resize-none"
+        <div className="min-w-0 space-y-5">
+          <Panel title="Shape your document" contentClassName="space-y-5 pt-0">
+            <StudioSettings
+              studio={studio}
+              busy={live}
+              sourcesBlocked={sourcesBlocked}
+              hasDraft={hasDraft}
             />
-          </div>
+            <StudioSources studio={studio} busy={live} />
+            <StudioOutline
+              studio={studio}
+              busy={live}
+              sourcesBlocked={sourcesBlocked}
+              doc={doc}
+              onBeforeDraft={flushEditor}
+            />
+          </Panel>
+          <StudioHistory studio={studio} busy={live} editor={editor} />
+        </div>
 
-          <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm font-medium">Style</legend>
-            <RadioGroup defaultValue="academic-report" disabled className="gap-2">
-              <StyleOption value="academic-report" label="Academic Report" />
-              <StyleOption value="study-notes" label="Study Notes" />
-            </RadioGroup>
-          </fieldset>
-
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Sources</p>
-            <p className="text-sm text-muted-foreground">No sources connected.</p>
-          </div>
-
-          <div className="space-y-2">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <ListTree className="size-4" aria-hidden="true" />
-              Outline
-            </p>
-            <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-              Your outline appears here once you describe the document.
-            </p>
-          </div>
-
-          <ComingSoonButton variant="research" className="w-full" reason="Drafting opens soon">
-            <Check aria-hidden="true" />
-            Approve &amp; create draft
-          </ComingSoonButton>
-        </Panel>
-
-        <section aria-label="Editor" className="min-w-0 overflow-hidden rounded-xl border bg-muted">
-          <div
-            role="toolbar"
-            aria-label="Formatting"
-            className="flex items-center gap-1 border-b bg-card px-2 py-1.5"
-          >
-            <EditorToggle label="Bold">
-              <Bold />
-            </EditorToggle>
-            <EditorToggle label="Italic">
-              <Italic />
-            </EditorToggle>
-            <EditorToggle label="Bulleted list">
-              <List />
-            </EditorToggle>
-            <Separator orientation="vertical" className="mx-1 h-6" />
-            <span className="ml-auto px-2 text-sm text-muted-foreground">Not saved yet</span>
-          </div>
-          <div className="p-4 md:p-8">
-            <Paper className="flex min-h-[420px] flex-col items-center justify-center text-center md:min-h-[600px]">
-              <p className="font-serif text-xl font-semibold">Your draft appears here.</p>
-              <p className="mt-2 max-w-sm font-sans text-[0.9375rem] text-paper-ink/70">
-                Approve an outline and FolioMind drafts each section for you to edit.
-              </p>
-            </Paper>
-          </div>
-        </section>
+        <div className="min-w-0 space-y-4">
+          <SectionProposals studio={studio} doc={doc} editor={editor} />
+          <StudioEditor
+            projectId={state.id}
+            doc={state.content ?? doc}
+            counter={state.revisionCounter}
+            counterRef={counterRef}
+            readOnly={drafting || state.archived}
+            sources={state.sources}
+            handleRef={editor}
+            onChange={onChange}
+            onSaved={onSaved}
+            onRevisionSaved={onRevisionSaved}
+            preview={preview}
+          />
+        </div>
       </div>
     </div>
-  );
-}
-
-function StyleOption({ value, label }: { value: string; label: string }) {
-  const id = `studio-style-${value}`;
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5">
-      <RadioGroupItem id={id} value={value} />
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
-    </div>
-  );
-}
-
-function EditorToggle({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Toggle size="sm" disabled aria-label={label} className="[&_svg]:size-4">
-      {children}
-    </Toggle>
   );
 }
