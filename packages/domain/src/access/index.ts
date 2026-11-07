@@ -143,7 +143,9 @@ export async function ownsProject(db: Executor, actor: Actor | null, projectId: 
     db
       .select({ one: sql`1` })
       .from(projects)
-      .where(and(eq(projects.id, projectId), eq(projects.ownerId, actor.id))),
+      .where(
+        and(eq(projects.id, projectId), eq(projects.ownerId, actor.id), isNull(projects.deletedAt)),
+      ),
   );
 }
 

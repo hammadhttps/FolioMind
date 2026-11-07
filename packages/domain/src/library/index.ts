@@ -266,7 +266,7 @@ export async function dashboardCounts(db: Executor, userId: string): Promise<Das
         where owner_id = ${userId} and status = 'active' and deleted_at is null) as documents,
       (select count(*)::int from library_items where user_id = ${userId} and book_id is not null) as saved_books,
       (select count(*)::int from workspaces where owner_id = ${userId}) as workspaces,
-      (select count(*)::int from projects where owner_id = ${userId} and archived_at is null) as projects`);
+      (select count(*)::int from projects where owner_id = ${userId} and archived_at is null and deleted_at is null) as projects`);
   return {
     documents: Number(row?.documents ?? 0),
     savedBooks: Number(row?.saved_books ?? 0),

@@ -305,15 +305,27 @@ export async function listSourceCandidates(
   db: Executor,
   actor: Actor,
   query: {
-    workspaceId: string;
+    /** Leaves out what's already in this workspace; a project's picker passes none. */
+    workspaceId?: string | undefined;
+    /** Leaves out versions the caller already picked. */
+    excludeVersionIds?: readonly string[] | undefined;
     q?: string | undefined;
     type: (typeof SOURCE_PICKER_TYPES)[number];
     cursor?: string | undefined;
     limit: number;
   },
 ): Promise<{ items: SourceCandidate[]; nextCursor: string | null } | null> {
-  if (!(await ownsWorkspace(db, actor, query.workspaceId))) return null;
+  if (actor.status !== "active") return null;
+  if (query.workspaceId && !(await ownsWorkspace(db, actor, query.workspaceId))) return null;
   const filters: SQL[] = [];
+  if (query.excludeVersionIds && query.excludeVersionIds.length > 0) {
+    filters.push(
+      sql`version_id not in (${sql.join(
+        query.excludeVersionIds.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})`,
+    );
+  }
   if (query.q) {
     const pattern = `%${query.q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
     filters.push(sql`title ilike ${pattern}`);
@@ -363,10 +375,14 @@ export async function listSourceCandidates(
       from candidates c
       join document_versions v on v.id = c.version_id
       where v.status = 'ready'
-        and not exists (
+        ${
+          query.workspaceId
+            ? sql`and not exists (
           select 1 from workspace_sources s
           where s.workspace_id = ${query.workspaceId} and s.document_version_id = c.version_id
-        )
+        )`
+            : sql``
+        }
     )
     select version_id, title, kind, sort_at::text as sort_value
     from ready
