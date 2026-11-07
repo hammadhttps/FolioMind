@@ -110,6 +110,8 @@ export const backgroundJobsShape = {
   INGESTION_CONCURRENCY: concurrency(1),
   IMPORT_CONCURRENCY: concurrency(2),
   CONTROL_CONCURRENCY: concurrency(2),
+  /** One heavy run at a time across generation and export (Section 9). */
+  GENERATION_CONCURRENCY: concurrency(1),
   /**
    * `dispatch-outbox` schedule. The web app delivers events right after
    * commit, so this sweep only recovers failed sends. Each sweep wakes Neon,

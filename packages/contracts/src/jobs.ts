@@ -6,7 +6,16 @@ import { z } from "zod";
  * status, phase, progress and a safe error code.
  */
 
-export const JOB_KINDS = ["ingest-document", "import-url"] as const;
+export const DOCUMENT_JOB_KINDS = ["ingest-document", "import-url"] as const;
+/** Worker B (Section 9): one live job per project at a time. */
+export const PROJECT_JOB_KINDS = [
+  "generate-outline",
+  "generate-draft",
+  "regenerate-section",
+  "render-export",
+] as const;
+export type ProjectJobKind = (typeof PROJECT_JOB_KINDS)[number];
+export const JOB_KINDS = [...DOCUMENT_JOB_KINDS, ...PROJECT_JOB_KINDS] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 export const JOB_STATUS_VALUES = ["queued", "running", "succeeded", "failed", "cancelled"] as const;
@@ -28,6 +37,13 @@ export const JOB_PHASES = [
   "chunking",
   "embedding",
   "verifying",
+  "retrieving",
+  "outlining",
+  "drafting",
+  "revising",
+  "composing",
+  "exporting",
+  "uploading",
   "done",
 ] as const;
 export type JobPhase = (typeof JOB_PHASES)[number];
@@ -42,6 +58,13 @@ export const JOB_PHASE_LABELS: Record<JobPhase, string> = {
   chunking: "Organizing the text…",
   embedding: "Indexing for search…",
   verifying: "Finishing up…",
+  retrieving: "Finding evidence in your sources…",
+  outlining: "Writing an outline…",
+  drafting: "Writing each section…",
+  revising: "Writing a new version…",
+  composing: "Laying out your document…",
+  exporting: "Rendering your PDF…",
+  uploading: "Saving your PDF…",
   done: "Done",
 };
 
@@ -67,6 +90,13 @@ export const JOB_ERROR_MESSAGES = {
   render_failed: "We couldn't make a PDF of that page. Try again later.",
   storage_limit:
     "This would go over your storage allowance. Delete something or upgrade, then try again.",
+  generation_failed: "We couldn't finish this. Nothing was charged. Please try again.",
+  provider_daily_limit:
+    "FolioMind has used today's free AI requests. Nothing was charged. Please try again tomorrow.",
+  source_unavailable:
+    "A source in this project isn't available anymore. Remove it or pick another, then try again.",
+  export_too_large: "This document is too long to export. PDFs can have up to 200 pages.",
+  export_failed: "We couldn't render this PDF. Nothing was charged. Please try again.",
   internal: "Something went wrong while processing it. Try again.",
 } as const;
 export type JobErrorCode = keyof typeof JOB_ERROR_MESSAGES;
@@ -82,6 +112,7 @@ export const PERMANENT_JOB_ERRORS = [
   "file_too_large",
   "needs_ocr",
   "file_missing",
+  "export_too_large",
 ] as const satisfies readonly JobErrorCode[];
 
 export function jobErrorMessage(code: string | null | undefined): string | null {
@@ -95,6 +126,8 @@ export const jobProgressSchema = z
     pages: z.number().int().nonnegative().optional(),
     chunks: z.number().int().nonnegative().optional(),
     embedded: z.number().int().nonnegative().optional(),
+    sections: z.number().int().nonnegative().optional(),
+    sectionsDone: z.number().int().nonnegative().optional(),
   })
   .partial();
 export type JobProgress = z.infer<typeof jobProgressSchema>;
@@ -112,6 +145,7 @@ export const jobStatusResponseSchema = z.object({
   canRetry: z.boolean(),
   canCancel: z.boolean(),
   documentId: z.uuid().nullable(),
+  projectId: z.uuid().nullable(),
   updatedAt: z.iso.datetime(),
 });
 export type JobStatusResponse = z.infer<typeof jobStatusResponseSchema>;

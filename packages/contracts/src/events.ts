@@ -13,6 +13,11 @@ export const EVENT_NAMES = {
   documentVersionCancelled: "document/version.cancelled",
   documentUrlImportRequested: "document/url-import.requested",
   notificationCreated: "notification/created",
+  projectOutlineRequested: "project/outline.requested",
+  projectDraftRequested: "project/draft.requested",
+  projectSectionRequested: "project/section.requested",
+  projectExportRequested: "project/export.requested",
+  projectGenerationCancelled: "project/generation.cancelled",
 } as const;
 
 export type EventName = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES];
@@ -63,12 +68,48 @@ export type DocumentUrlImportRequestedData = z.infer<typeof documentUrlImportReq
 export const notificationCreatedData = z.object({
   userId: z.uuid(),
   type: notificationTypeSchema,
-  /** The document the notice is about. */
+  /** The document or project the notice is about. */
   subjectId: z.uuid(),
   /** Unique per user; a repeat delivery writes nothing new. */
   operationKey: z.string().min(1).max(200),
 });
 export type NotificationCreatedData = z.infer<typeof notificationCreatedData>;
+
+/** What every Worker B request carries; the usage key is what `onFailure` releases. */
+const projectJobData = z.object({
+  projectId: z.uuid(),
+  ownerId: z.uuid(),
+  jobId: z.uuid(),
+  operationKey: z.string().min(1).max(200),
+  /** The reservation this job holds; null when an earlier charge already covers it. */
+  usageKey: z.string().min(1).max(200).nullable(),
+});
+
+export const projectOutlineRequestedData = projectJobData;
+export type ProjectOutlineRequestedData = z.infer<typeof projectOutlineRequestedData>;
+
+export const projectDraftRequestedData = projectJobData.extend({
+  /** Redraft every section, instead of filling in the ones not written yet. */
+  replace: z.boolean(),
+});
+export type ProjectDraftRequestedData = z.infer<typeof projectDraftRequestedData>;
+
+export const projectSectionRequestedData = projectJobData.extend({ sectionId: z.uuid() });
+export type ProjectSectionRequestedData = z.infer<typeof projectSectionRequestedData>;
+
+export const projectExportRequestedData = projectJobData.extend({
+  exportId: z.uuid(),
+  revisionId: z.uuid(),
+});
+export type ProjectExportRequestedData = z.infer<typeof projectExportRequestedData>;
+
+/** Stops a running generation between steps; the cancel route has marked the job already. */
+export const projectGenerationCancelledData = z.object({
+  jobId: z.uuid(),
+  ownerId: z.uuid(),
+  operationKey: z.string().min(1).max(200),
+});
+export type ProjectGenerationCancelledData = z.infer<typeof projectGenerationCancelledData>;
 
 /**
  * Payload schema per event name. The outbox validates against it before a row
@@ -80,6 +121,11 @@ export const EVENT_SCHEMAS = {
   [EVENT_NAMES.documentVersionCancelled]: documentVersionCancelledData,
   [EVENT_NAMES.documentUrlImportRequested]: documentUrlImportRequestedData,
   [EVENT_NAMES.notificationCreated]: notificationCreatedData,
+  [EVENT_NAMES.projectOutlineRequested]: projectOutlineRequestedData,
+  [EVENT_NAMES.projectDraftRequested]: projectDraftRequestedData,
+  [EVENT_NAMES.projectSectionRequested]: projectSectionRequestedData,
+  [EVENT_NAMES.projectExportRequested]: projectExportRequestedData,
+  [EVENT_NAMES.projectGenerationCancelled]: projectGenerationCancelledData,
 } as const satisfies Record<EventName, z.ZodType>;
 
 export type EventData<TName extends EventName> = z.infer<(typeof EVENT_SCHEMAS)[TName]>;

@@ -11,6 +11,10 @@ export const NOTIFICATION_TYPES = [
   "document_failed",
   "document_needs_ocr",
   "import_failed",
+  "draft_ready",
+  "generation_failed",
+  "export_ready",
+  "export_failed",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const notificationTypeSchema = z.enum(NOTIFICATION_TYPES);
@@ -24,6 +28,11 @@ export const NOTIFICATION_PREFERENCES = {
     label: "Document processing",
     description: "When an upload or imported article is ready, or couldn't be processed.",
     types: ["document_ready", "document_failed", "document_needs_ocr", "import_failed"],
+  },
+  projects: {
+    label: "Projects",
+    description: "When a draft or a PDF export is ready, or couldn't be finished.",
+    types: ["draft_ready", "generation_failed", "export_ready", "export_failed"],
   },
 } as const satisfies Record<
   string,
@@ -40,6 +49,7 @@ export function preferenceFor(type: NotificationType): NotificationPreferenceKey
 
 export const notificationPreferencesSchema = z.object({
   documents: z.boolean(),
+  projects: z.boolean(),
 });
 export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 
@@ -47,7 +57,7 @@ export type NotificationPreferences = z.infer<typeof notificationPreferencesSche
 export function readNotificationPreferences(
   stored: Record<string, unknown> | null | undefined,
 ): NotificationPreferences {
-  return { documents: stored?.documents !== false };
+  return { documents: stored?.documents !== false, projects: stored?.projects !== false };
 }
 
 /** The drawer's page size (Section 24 keyset "Load more"). */
