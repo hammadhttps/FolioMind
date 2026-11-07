@@ -22,6 +22,13 @@
       "when": 1793824154888,
       "tag": "0002_chat_citation_support",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794003985814,
+      "tag": "0003_project_studio",
+      "breakpoints": true
     }
   ]
 }

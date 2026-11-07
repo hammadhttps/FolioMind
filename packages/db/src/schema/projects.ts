@@ -10,7 +10,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { createdAt, id, timestamps, timestamptz } from "./columns";
+import { createdAt, id, inValues, timestamps, timestamptz } from "./columns";
 import { projectMode } from "./enums";
 import { assets, documentVersions } from "./files";
 import { users } from "./identity";
@@ -38,10 +38,30 @@ export const projects = pgTable(
     revisionCounter: integer("revision_counter").notNull().default(0),
     status: text("status").notNull(),
     archivedAt: timestamptz("archived_at"),
+    /** Soft delete: access stops at once; the daily cleanup removes the row (Section 11). */
+    deletedAt: timestamptz("deleted_at"),
+    /** Regenerated sections waiting for the owner's decision (Section 5 row 11). */
+    sectionProposals: jsonb("section_proposals").notNull().default([]),
+    /** The committed project credit, so a duplicate can't draft for free (Section 10). */
+    creditOperationKey: text("credit_operation_key"),
+    /** When the initial draft finished: later drafts spend a regeneration. */
+    firstDraftAt: timestamptz("first_draft_at"),
     ...timestamps(),
   },
   (t) => [
     check("projects_revision_counter_check", sql`${t.revisionCounter} >= 0`),
+    check(
+      "projects_status_check",
+      inValues(t.status, [
+        "draft",
+        "outline",
+        "drafting",
+        "editing",
+        "rendering",
+        "complete",
+        "failed",
+      ]),
+    ),
     // My Projects: recently updated (Section 24).
     index("projects_owner_updated_idx").on(
       t.ownerId,
@@ -113,6 +133,7 @@ export const exports = pgTable(
   },
   (t) => [
     check("exports_page_count_check", sql`${t.pageCount} >= 0`),
+    check("exports_status_check", inValues(t.status, ["queued", "rendering", "ready", "failed"])),
     index("exports_revision_idx").on(t.projectRevisionId),
     index("exports_job_idx").on(t.jobId),
   ],
