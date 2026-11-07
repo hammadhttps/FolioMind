@@ -11,10 +11,19 @@ import {
   documents,
   documentVersions,
   libraryItems,
+  projectRevisions,
+  projects,
+  projectSources,
   usageBuckets,
   userPreferences,
   users,
 } from "@foliomind/db";
+import {
+  collectCitations,
+  readProjectDoc,
+  renumberCitations,
+  stampDraftedCitations,
+} from "@foliomind/contracts";
 import { signIn, type UserSnapshot } from "@foliomind/domain";
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
 import { eq, sql } from "drizzle-orm";
@@ -216,6 +225,137 @@ export async function currentVersionId(documentId: string): Promise<string> {
   return row.versionId;
 }
 
+export const currentVersionOf = currentVersionId;
+
+/** A document deleted by its owner: access stops at once. */
+export async function softDeleteDocument(documentId: string) {
+  await db()
+    .update(documents)
+    .set({ status: "deleting", deletedAt: new Date() })
+    .where(eq(documents.id, documentId));
+}
+
+/** The fingerprint of "Dark roofs store heat." as `stampDraftedCitations` computes it. */
+export const DRAFT_HASH = (() => {
+  const doc = renumberCitations(
+    readProjectDoc({
+      type: "doc",
+      content: [
+        stampDraftedCitations({
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Dark roofs store heat" },
+            {
+              type: "citation",
+              attrs: {
+                label: "1",
+                chunkId: null,
+                versionId: "00000000-0000-4000-8000-000000000000",
+                pageStart: 1,
+                pageEnd: 1,
+                draftHash: null,
+              },
+            },
+            { type: "text", text: "." },
+          ],
+        }),
+      ],
+    }),
+  );
+  return collectCitations(doc)[0]?.draftHash ?? null;
+})();
+
+export interface SeedProjectInput {
+  title: string;
+  mode?: "research" | "general";
+  status?: string;
+  template?: string;
+  prompt?: string;
+  outline?: unknown[];
+  content?: unknown;
+  proposals?: unknown[];
+  versionIds?: string[];
+  firstDraft?: boolean;
+}
+
+/** A project already at some stage, so its screens can be tested without generating anything. */
+export async function seedProject(userId: string, input: SeedProjectInput): Promise<string> {
+  const [project] = await db()
+    .insert(projects)
+    .values({
+      ownerId: userId,
+      title: input.title,
+      mode: input.mode ?? "research",
+      prompt: input.prompt ?? "",
+      templateKey: input.template ?? "academic-report",
+      status: input.status ?? "draft",
+      outline: input.outline ?? [],
+      editorContent: input.content ?? {},
+      sectionProposals: input.proposals ?? [],
+      firstDraftAt: input.firstDraft ? new Date() : null,
+      creditOperationKey: input.firstDraft ? "seeded" : null,
+    })
+    .returning({ id: projects.id });
+  if (!project) throw new Error("project insert failed");
+  if (input.versionIds?.length) {
+    await db()
+      .insert(projectSources)
+      .values(
+        input.versionIds.map((versionId) => ({
+          projectId: project.id,
+          documentVersionId: versionId,
+        })),
+      );
+  }
+  return project.id;
+}
+
+export async function seedProposals(projectId: string, proposals: unknown[]) {
+  await db()
+    .update(projects)
+    .set({ sectionProposals: proposals })
+    .where(eq(projects.id, projectId));
+}
+
+/** Gemini cost and export timing for a user's projects, for the Phase 8 record. */
+export async function generationSummary(userId: string) {
+  const runs = await db().execute<{
+    purpose: string;
+    model: string;
+    runs: number;
+    requests: number;
+    input_tokens: number;
+    output_tokens: number;
+    cost: string;
+    avg_ms: number;
+  }>(sql`
+    select purpose, model, count(*)::int as runs,
+      coalesce(sum((retrieval_metadata->>'requests')::int), 0)::int as requests,
+      sum(input_tokens)::int as input_tokens, sum(output_tokens)::int as output_tokens,
+      coalesce(sum(estimated_cost), 0)::text as cost, avg(latency_ms)::int as avg_ms
+    from ai_runs where user_id = ${userId} and purpose like 'project-%'
+    group by purpose, model order by purpose`);
+  const exports = await db().execute<{ result: unknown }>(
+    sql`select result from jobs where owner_id = ${userId} and kind = 'render-export' and status = 'succeeded'`,
+  );
+  return { runs: [...runs], exports: exports.map((row) => row.result) };
+}
+
+/** What's stored right now, to check that the screen told the truth. */
+export async function projectSnapshot(projectId: string) {
+  const [project] = await db().select().from(projects).where(eq(projects.id, projectId));
+  const revisions = await db()
+    .select({ content: projectRevisions.content })
+    .from(projectRevisions)
+    .where(eq(projectRevisions.projectId, projectId));
+  return {
+    content: project?.editorContent,
+    outline: (project?.outline ?? []) as { heading: string }[],
+    proposals: project?.sectionProposals,
+    revisions,
+  };
+}
+
 /** True when this server can answer: it reads both AI keys from apps/web/.env.local. */
 export function hasAiKeys(): boolean {
   const file = path.resolve(__dirname, "../.env.local");
@@ -279,7 +419,7 @@ export async function seedDocument(
 }
 
 /** True when a Worker A is connected to the local Inngest Dev Server. */
-export async function hasConnectedWorker(): Promise<boolean> {
+async function hasConnectedApp(name: string): Promise<boolean> {
   const response = await fetch("http://127.0.0.1:8288/v0/gql", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -289,7 +429,18 @@ export async function hasConnectedWorker(): Promise<boolean> {
   const body = (await response.json().catch(() => null)) as {
     data?: { apps?: { name: string; connected: boolean }[] };
   } | null;
-  return Boolean(
-    body?.data?.apps?.some((app) => app.name === "foliomind-ingestion" && app.connected),
-  );
+  // A synced route app takes its calls over HTTP, so it never reports a Connect connection.
+  const onRoute = Boolean(process.env.E2E_FUNCTIONS_ON_ROUTE);
+  return Boolean(body?.data?.apps?.some((app) => app.name === name && (app.connected || onRoute)));
 }
+
+export const hasConnectedWorker = () => hasConnectedApp("foliomind-ingestion");
+
+/**
+ * Worker B, for generation and export. With E2E_FUNCTIONS_ON_ROUTE=1 the functions
+ * run from the web app's /api/inngest route instead, as they do on Vercel.
+ */
+export const hasGenerationWorker = () =>
+  hasConnectedApp(
+    process.env.E2E_FUNCTIONS_ON_ROUTE ? "foliomind-ingestion" : "foliomind-generation",
+  );
