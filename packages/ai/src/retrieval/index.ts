@@ -14,6 +14,7 @@ import {
 } from "./rerank";
 import type { ResolvedSource } from "./sources";
 
+export { shouldAbstain as shouldAbstainFromScore } from "../chat/abstain";
 export * from "./config";
 export * from "./embed-query";
 export * from "./hybrid";

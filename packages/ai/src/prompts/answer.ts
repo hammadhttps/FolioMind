@@ -49,7 +49,7 @@ export interface PromptPassage {
 }
 
 /** One line, no delimiter characters: titles come from users and publishers. */
-const cleanAttribute = (value: string, max = 160): string =>
+export const cleanAttribute = (value: string, max = 160): string =>
   value
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f<>"]/g, " ")
@@ -57,7 +57,7 @@ const cleanAttribute = (value: string, max = 160): string =>
     .trim()
     .slice(0, max);
 
-const pageRange = (start: number, end: number): string =>
+export const pageRange = (start: number, end: number): string =>
   start === end ? String(start) : `${start}-${end}`;
 
 export function buildAnswerPrompt(input: {

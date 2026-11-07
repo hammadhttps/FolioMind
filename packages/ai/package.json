@@ -8,6 +8,7 @@
     "./jina": "./src/jina.ts",
     "./retrieval": "./src/retrieval/index.ts",
     "./chat": "./src/chat/index.ts",
+    "./generation": "./src/generation/index.ts",
     "./prompts": "./src/prompts/index.ts",
     "./eval": "./src/eval/index.ts",
     "./pricing": "./src/pricing.ts"
