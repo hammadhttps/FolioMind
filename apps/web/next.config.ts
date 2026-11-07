@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
       "./node_modules/pdfjs-dist/standard_fonts/**",
     ],
   },
+  // A Studio autosave holds the whole document (Section 28's limits allow about 800 KB of JSON).
+  experimental: { serverActions: { bodySizeLimit: "2mb" } },
   cacheComponents: true,
   partialPrefetching: true,
   // Provider profile pictures (Section 22 rule 7) and public UploadThing files

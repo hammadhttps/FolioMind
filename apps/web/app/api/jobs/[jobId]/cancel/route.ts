@@ -1,4 +1,4 @@
-import { jobStatusForOwner, requestJobCancel } from "@foliomind/domain";
+import { jobStatusForOwner, requestJobCancel, requestProjectJobCancel } from "@foliomind/domain";
 import { z } from "zod";
 import { getDb } from "@/lib/clients";
 import { deliverNow } from "@/lib/outbox";
@@ -24,7 +24,9 @@ export const POST = withRateLimit(
 
     const jobId = z.uuid().safeParse((await params).jobId);
     if (!jobId.success) return apiError(404, "not_found", "We couldn't find that job.");
-    const cancelled = await requestJobCancel(getDb(), user.id, jobId.data);
+    const cancelled =
+      (await requestJobCancel(getDb(), user.id, jobId.data)) ??
+      (await requestProjectJobCancel(getDb(), user.id, jobId.data));
     if (!cancelled) {
       const exists = await jobStatusForOwner(getDb(), user.id, jobId.data);
       return exists
