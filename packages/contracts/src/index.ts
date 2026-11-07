@@ -10,4 +10,6 @@ export * from "./indexing";
 export * from "./jobs";
 export * from "./notifications";
 export * from "./plans";
+export * from "./project-state";
+export * from "./projects";
 export * from "./workspaces";

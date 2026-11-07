@@ -186,6 +186,3 @@ export function answerToNoteDoc(body: string): NoteDoc {
 }
 
 export const EMPTY_NOTE_DOC: NoteDoc = { type: "doc", content: [{ type: "paragraph" }] };
-
-/** PDF Studio's two launch templates (Section 8). */
-export const PROJECT_TEMPLATES = ["academic-report", "study-notes"] as const;

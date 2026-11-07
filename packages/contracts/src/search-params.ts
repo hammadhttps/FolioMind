@@ -109,6 +109,40 @@ export const workspaceSearchParamsSchema = z.object({
 
 export type WorkspaceSearchParams = z.infer<typeof workspaceSearchParamsSchema>;
 
+export const PROJECT_SORTS = ["updated", "created", "title"] as const;
+export const PROJECT_LIST_STATUSES = [
+  "all",
+  "draft",
+  "generating",
+  "editing",
+  "rendering",
+  "complete",
+  "failed",
+] as const;
+export const PROJECT_LIST_MODES = ["all", "research", "general"] as const;
+export const PROJECT_LIST_TEMPLATES = ["all", "academic-report", "study-notes"] as const;
+export const PROJECT_LIST_ARCHIVED = ["active", "archived"] as const;
+
+const cursorParam = z.preprocess(first, z.string().max(500).optional()).catch(undefined);
+
+/**
+ * My Projects (Section 24): search, status, mode, template, archived, sort, with
+ * `after`/`before` keyset cursors. `start` only numbers the "Showing 21–40" line.
+ */
+export const projectsSearchParamsSchema = z.object({
+  q: searchTerm,
+  status: z.preprocess(first, z.enum(PROJECT_LIST_STATUSES)).catch("all"),
+  mode: z.preprocess(first, z.enum(PROJECT_LIST_MODES)).catch("all"),
+  template: z.preprocess(first, z.enum(PROJECT_LIST_TEMPLATES)).catch("all"),
+  archived: z.preprocess(first, z.enum(PROJECT_LIST_ARCHIVED)).catch("active"),
+  sort: z.preprocess(first, z.enum(PROJECT_SORTS)).catch("updated"),
+  after: cursorParam,
+  before: cursorParam,
+  start: z.preprocess(first, z.coerce.number().int().min(1).max(100_000)).catch(1),
+});
+
+export type ProjectsSearchParams = z.infer<typeof projectsSearchParamsSchema>;
+
 export function parseSearchParams<T extends z.ZodType>(
   schema: T,
   raw: Record<string, RawParam>,
