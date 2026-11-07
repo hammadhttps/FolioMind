@@ -1,4 +1,5 @@
 import {
+  backgroundJobsShape,
   baseShape,
   browserlessShape,
   directDatabaseShape,
@@ -23,7 +24,9 @@ const schema = z.object({
   ...jinaShape,
   ...geminiShape,
   // One heavy run at a time across generation and export (Section 9).
-  GENERATION_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
+  GENERATION_CONCURRENCY: backgroundJobsShape.GENERATION_CONCURRENCY,
+  EXTRACTION_TIMEOUT_MS: backgroundJobsShape.EXTRACTION_TIMEOUT_MS,
+  EXTRACTION_MEMORY_MB: backgroundJobsShape.EXTRACTION_MEMORY_MB,
 });
 
 export function loadEnv(source: Record<string, string | undefined> = process.env) {
