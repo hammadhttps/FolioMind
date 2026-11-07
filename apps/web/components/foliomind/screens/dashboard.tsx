@@ -9,13 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dashboardTabParser } from "@/lib/search-params";
 import type { WorkspaceCardView } from "@/lib/workspaces/view";
 import { BookCard } from "../book-card";
-import { ComingSoonButton } from "../coming-soon";
 import { EmptyState } from "../empty-state";
 import { Hero, HeroLink } from "../hero";
 import { MetricCard } from "../metric-card";
 import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
-import { ProjectsTable } from "../projects-table";
+import { CreateProjectDialog } from "../projects/create-project-dialog";
+import { ProjectsTable, type ProjectRow } from "../projects-table";
 import { WorkspaceFormDialog } from "../research/workspace-dialogs";
 import { WorkspaceList, type WorkspaceListData } from "../research/workspace-list";
 import { WelcomeTitle } from "../session-user";
@@ -35,11 +35,13 @@ export interface DashboardData {
   workspaces: WorkspaceListData;
   /** "Research in motion": the most recently updated workspaces. */
   recentWorkspaces: WorkspaceCardView[];
+  /** "Your recent projects". */
+  recentProjects: ProjectRow[];
 }
 
 /**
  * Dashboard (Section 20 #6) with the research workspace list as `?tab=research`.
- * Every figure is real; projects stay empty until Phase 8.
+ * Every figure is real.
  */
 export function DashboardScreen({ data }: { data: DashboardData | null }) {
   const router = useRouter();
@@ -61,10 +63,14 @@ export function DashboardScreen({ data }: { data: DashboardData | null }) {
                 </Button>
               }
             />
-            <ComingSoonButton reason="PDF creation opens soon">
-              <FilePlus2 aria-hidden="true" />
-              Create a PDF
-            </ComingSoonButton>
+            <CreateProjectDialog
+              trigger={
+                <Button>
+                  <FilePlus2 aria-hidden="true" />
+                  Create a PDF
+                </Button>
+              }
+            />
           </>
         }
       />
@@ -175,7 +181,7 @@ export function DashboardScreen({ data }: { data: DashboardData | null }) {
                   </Button>
                 </div>
                 <ProjectsTable
-                  data={[]}
+                  data={data?.recentProjects ?? []}
                   empty={
                     <EmptyState
                       variant="plain"

@@ -3,12 +3,14 @@ import { workspaceSearchParamsSchema } from "@foliomind/contracts/search-params"
 import {
   continueReading,
   dashboardCounts,
+  listProjects,
   listWorkspaces,
   uploadAllowance,
 } from "@foliomind/domain";
 import type { Metadata } from "next";
 import { DashboardScreen } from "@/components/foliomind/screens/dashboard";
 import { getDb } from "@/lib/clients";
+import { toProjectRow } from "@/lib/projects/view";
 import { requireUser } from "@/lib/session";
 import { toWorkspaceCard } from "@/lib/workspaces/view";
 
@@ -19,7 +21,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const user = await requireUser();
   const params = workspaceSearchParamsSchema.parse(await searchParams);
   const db = getDb();
-  const [counts, reading, allowance, workspaces] = await Promise.all([
+  const [counts, reading, allowance, workspaces, projects] = await Promise.all([
     dashboardCounts(db, user.id),
     continueReading(db, user.id, 3),
     uploadAllowance(db, user.id),
@@ -29,6 +31,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       sort: params.sort,
       limit: WORKSPACE_PAGE_SIZE,
     }),
+    listProjects(db, { userId: user.id, sort: "updated", limit: 5 }),
   ]);
   // The rail always shows recent work, whatever the research tab is filtered to.
   const recent =
@@ -51,6 +54,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           nextCursor: workspaces.nextCursor,
         },
         recentWorkspaces: recent.map(toWorkspaceCard),
+        recentProjects: projects.items.map(toProjectRow),
       }}
     />
   );

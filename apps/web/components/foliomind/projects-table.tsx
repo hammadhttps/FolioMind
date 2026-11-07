@@ -1,17 +1,9 @@
 "use client";
 
 import { createColumnHelper, tableFeatures, useTable } from "@tanstack/react-table";
-import { Copy, Ellipsis, FileDown, FileText, FolderOpen, Trash2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -20,17 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatusChip, type StatusKind } from "./status-chip";
+import type { ProjectRow } from "@/lib/projects/view";
+import { ProjectRowActions } from "./projects/project-row-actions";
+import { StatusChip } from "./status-chip";
 
-export interface ProjectRow {
-  id: string;
-  title: string;
-  /** Template and sources, e.g. "Academic Report · 3 sources". */
-  subtitle: string;
-  status: StatusKind;
-  statusLabel?: string;
-  updatedLabel: string;
-}
+export type { ProjectRow };
 
 const features = tableFeatures({});
 const column = createColumnHelper<typeof features, ProjectRow>();
@@ -70,13 +56,13 @@ const columns = column.columns([
   column.display({
     id: "actions",
     header: () => <span className="sr-only">Actions</span>,
-    cell: ({ row }) => <RowActions project={row.original} />,
+    cell: ({ row }) => <ProjectRowActions project={row.original} />,
   }),
 ]);
 
 /**
  * Projects table (Section 19): horizontal-overflow wrapper, hover rows, status
- * chip and an icon action menu. Server-side sorting and paging arrive with data.
+ * chip and an icon action menu. Sorting and paging happen on the server (Section 24).
  */
 export function ProjectsTable({ data, empty }: { data: ProjectRow[]; empty: ReactNode }) {
   const table = useTable({ features, columns, data });
@@ -117,38 +103,5 @@ export function ProjectsTable({ data, empty }: { data: ProjectRow[]; empty: Reac
         </TableBody>
       </Table>
     </div>
-  );
-}
-
-function RowActions({ project }: { project: ProjectRow }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${project.title}`}>
-          <Ellipsis className="size-4" aria-hidden="true" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link href={`/dashboard/projects/${project.id}`}>
-            <FolderOpen aria-hidden="true" />
-            Open
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <FileDown aria-hidden="true" />
-          Download
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <Copy aria-hidden="true" />
-          Duplicate
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled variant="destructive">
-          <Trash2 aria-hidden="true" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
