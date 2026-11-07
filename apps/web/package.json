@@ -16,6 +16,7 @@
     "@foliomind/contracts": "workspace:*",
     "@foliomind/db": "workspace:*",
     "@foliomind/domain": "workspace:*",
+    "@foliomind/pdf": "workspace:*",
     "@foliomind/workflows": "workspace:*",
     "@hookform/resolvers": "^6.0.2",
     "@t3-oss/env-nextjs": "^0.13.11",

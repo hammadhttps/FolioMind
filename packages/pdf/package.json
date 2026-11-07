@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./editor": "./src/editor.ts",
+    "./project": "./src/project-html.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -14,14 +16,21 @@
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@types/sanitize-html": "^2.16.2",
+    "pdfjs-dist": "^6.4.299",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vitest": "^5.0.5",
-    "tsx": "^4.23.15"
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "@foliomind/contracts": "workspace:*",
+    "@tiptap/core": "^3.32.1",
+    "@tiptap/extension-table": "^3.32.1",
+    "@tiptap/html": "^3.32.1",
+    "@tiptap/pm": "^3.32.1",
+    "@tiptap/starter-kit": "^3.32.1",
+    "happy-dom": "^20.14.6",
+    "marked": "^18.1.2",
     "puppeteer-core": "^25.16.0",
-    "sanitize-html": "^2.18.1",
-    "marked": "^18.1.2"
+    "sanitize-html": "^2.18.1"
   }
 }

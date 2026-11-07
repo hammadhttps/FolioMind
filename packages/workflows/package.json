@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./next": "./src/next.ts",
     "./worker-a": "./src/worker-a.ts",
+    "./worker-b": "./src/worker-b.ts",
     "./extract-child": "./src/ingestion/extract-child.mjs",
     "./chunking": "./src/ingestion/chunking.ts"
   },
@@ -29,6 +30,7 @@
     "@foliomind/domain": "workspace:*",
     "@foliomind/pdf": "workspace:*",
     "drizzle-orm": "^0.45.4",
+    "@upstash/redis": "^1.40.0",
     "inngest": "^4.26.1",
     "uploadthing": "^7.7.4",
     "zod": "^4.6.7"
