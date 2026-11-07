@@ -18,6 +18,10 @@ export interface RenderPdfOptions {
   displayHeaderFooter?: boolean;
   headerTemplate?: string;
   footerTemplate?: string;
+  /** Tagged PDF and bookmarks from headings, where the Chrome version supports them (Section 26). */
+  accessible?: boolean;
+  /** Every request the page tried and was refused; templates should cause none. */
+  onBlockedRequest?: (url: string) => void;
 }
 
 /**
@@ -70,8 +74,12 @@ export async function renderHtmlToPdf(
     await page.setRequestInterception(true);
     page.on("request", (request) => {
       if (request.isInterceptResolutionHandled()) return;
-      if (request.url().startsWith("data:")) void request.continue();
-      else void request.abort("blockedbyclient");
+      if (request.url().startsWith("data:")) {
+        void request.continue();
+        return;
+      }
+      options.onBlockedRequest?.(request.url());
+      void request.abort("blockedbyclient");
     });
     await page.setContent(html, { waitUntil: "load", timeout });
 
@@ -80,6 +88,7 @@ export async function renderHtmlToPdf(
       printBackground: true,
       preferCSSPageSize: true,
       timeout,
+      ...(options.accessible ? { tagged: true, outline: true } : {}),
     };
     if (options.displayHeaderFooter) {
       pdfOptions.displayHeaderFooter = true;

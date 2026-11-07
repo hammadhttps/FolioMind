@@ -1,11 +1,5 @@
-import {
-  interRegular,
-  interSemiBold,
-  serifItalic,
-  serifRegular,
-  serifSemiBold,
-} from "../fonts.generated";
 import { escapeHtml } from "../sanitize";
+import { FONT_FACE_CSS } from "./fonts-css";
 
 /*
  * The Web Snapshot print template (blueprint Section 27 step 6): title, source
@@ -34,11 +28,7 @@ export function webSnapshotHtml(input: WebSnapshotInput): string {
 <meta charset="utf-8">
 <title>${title}</title>
 <style>
-@font-face { font-family: "Inter"; font-weight: 400; src: url("${interRegular}") format("woff2"); }
-@font-face { font-family: "Inter"; font-weight: 600; src: url("${interSemiBold}") format("woff2"); }
-@font-face { font-family: "Source Serif 4"; font-weight: 400; src: url("${serifRegular}") format("woff2"); }
-@font-face { font-family: "Source Serif 4"; font-weight: 400; font-style: italic; src: url("${serifItalic}") format("woff2"); }
-@font-face { font-family: "Source Serif 4"; font-weight: 600; src: url("${serifSemiBold}") format("woff2"); }
+${FONT_FACE_CSS}
 @page { size: A4; margin: 22mm 20mm 24mm; }
 * { box-sizing: border-box; }
 html { color: #1f2937; background: #ffffff; }
