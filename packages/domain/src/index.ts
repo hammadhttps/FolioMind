@@ -15,6 +15,7 @@ export * from "./library";
 export * from "./notifications";
 export * from "./outbox";
 export * from "./processing";
+export * from "./projects";
 export * from "./reader";
 export * from "./usage";
 export * from "./users";
