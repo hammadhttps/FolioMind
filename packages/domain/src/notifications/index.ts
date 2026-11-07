@@ -4,7 +4,7 @@ import {
   readNotificationPreferences,
   type NotificationType,
 } from "@foliomind/contracts";
-import { documents, notifications, userPreferences, type Executor } from "@foliomind/db";
+import { documents, notifications, projects, userPreferences, type Executor } from "@foliomind/db";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { decodeCursor, encodeCursor } from "../library";
 
@@ -18,7 +18,8 @@ import { decodeCursor, encodeCursor } from "../library";
 interface Template {
   title: string;
   body: (subject: string) => string;
-  path: (documentId: string) => string;
+  /** The in-app page, from the document's or the project's ID. */
+  path: (subjectId: string) => string;
 }
 
 const ATTENTION_PATH = "/dashboard/library?status=attention";
@@ -45,7 +46,53 @@ const TEMPLATES: Record<NotificationType, Template> = {
     body: (title) => `“${title}” couldn't be imported. Open My Library to see why or try again.`,
     path: () => ATTENTION_PATH,
   },
+  draft_ready: {
+    title: "Your draft is ready to edit.",
+    body: (title) => `“${title}” is drafted. Open it to read and edit.`,
+    path: (id) => `/dashboard/projects/${id}`,
+  },
+  generation_failed: {
+    title: "We couldn't finish your project.",
+    body: (title) => `“${title}” couldn't be finished. Open it to see why or try again.`,
+    path: (id) => `/dashboard/projects/${id}`,
+  },
+  export_ready: {
+    title: "Your PDF is ready.",
+    body: (title) => `“${title}” is ready to download.`,
+    path: (id) => `/dashboard/projects/${id}`,
+  },
+  export_failed: {
+    title: "We couldn't export your PDF.",
+    body: (title) => `“${title}” couldn't be exported. Open it to see why or try again.`,
+    path: (id) => `/dashboard/projects/${id}`,
+  },
 };
+
+const PROJECT_TYPES: readonly NotificationType[] = [
+  "draft_ready",
+  "generation_failed",
+  "export_ready",
+  "export_failed",
+];
+
+/** The owner's title for what the notice is about; null when it's gone or was never theirs. */
+async function subjectTitle(
+  db: Executor,
+  input: { userId: string; type: NotificationType; subjectId: string },
+): Promise<string | null> {
+  if (PROJECT_TYPES.includes(input.type)) {
+    const [project] = await db
+      .select({ title: projects.title, deletedAt: projects.deletedAt })
+      .from(projects)
+      .where(and(eq(projects.id, input.subjectId), eq(projects.ownerId, input.userId)));
+    return project && !project.deletedAt ? project.title : null;
+  }
+  const [document] = await db
+    .select({ title: documents.title, status: documents.status })
+    .from(documents)
+    .where(and(eq(documents.id, input.subjectId), eq(documents.ownerId, input.userId)));
+  return document?.status === "active" ? document.title : null;
+}
 
 const clip = (value: string, max: number) =>
   value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`;
@@ -66,12 +113,9 @@ export async function createNotification(
   const preferences = readNotificationPreferences(prefs?.settings);
   if (!preferences[preferenceFor(input.type)]) return { created: false, skipped: "preference" };
 
-  const [document] = await db
-    .select({ title: documents.title, status: documents.status })
-    .from(documents)
-    .where(and(eq(documents.id, input.subjectId), eq(documents.ownerId, input.userId)));
-  // A document deleted before the notice went out needs no notice.
-  if (!document || document.status !== "active") return { created: false, skipped: "subject_gone" };
+  // Something deleted before the notice went out needs no notice.
+  const title = await subjectTitle(db, input);
+  if (title === null) return { created: false, skipped: "subject_gone" };
 
   const template = TEMPLATES[input.type];
   const inserted = await db
@@ -81,7 +125,7 @@ export async function createNotification(
       eventKey: input.eventKey,
       type: input.type,
       title: template.title,
-      safeBody: clip(template.body(clip(document.title, 120)), 280),
+      safeBody: clip(template.body(clip(title, 120)), 280),
       targetPath: template.path(input.subjectId),
     })
     .onConflictDoNothing({ target: [notifications.userId, notifications.eventKey] })

@@ -342,6 +342,8 @@ export async function recordAiRun(
     provider: string;
     model: string;
     inputTokens: number;
+    outputTokens?: number;
+    estimatedCost?: number;
     latencyMs: number;
     status: "succeeded" | "failed";
     metadata?: Record<string, unknown>;
@@ -354,7 +356,8 @@ export async function recordAiRun(
     provider: run.provider,
     model: run.model,
     inputTokens: run.inputTokens,
-    outputTokens: 0,
+    outputTokens: run.outputTokens ?? 0,
+    ...(run.estimatedCost !== undefined ? { estimatedCost: run.estimatedCost.toFixed(8) } : {}),
     latencyMs: Math.max(0, Math.round(run.latencyMs)),
     status: run.status,
     retrievalMetadata: run.metadata ?? {},

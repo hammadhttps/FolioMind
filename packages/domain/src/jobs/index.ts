@@ -3,9 +3,12 @@ import {
   isTerminalJobStatus,
   JOB_ERROR_MESSAGES,
   jobErrorMessage,
+  JOB_KINDS,
   JOB_PHASE_LABELS,
   JOB_PHASES,
   PERMANENT_JOB_ERRORS,
+  PROJECT_JOB_KINDS,
+  type JobKind,
   type JobErrorCode,
   type JobPhase,
   type JobProgress,
@@ -219,13 +222,15 @@ export async function jobStatusForOwner(
     .select()
     .from(jobs)
     .where(and(eq(jobs.id, jobId), eq(jobs.ownerId, ownerId)));
-  if (!job || (job.kind !== "ingest-document" && job.kind !== "import-url")) return null;
-  const documentId = await jobDocumentId(db, job);
+  if (!job || !(JOB_KINDS as readonly string[]).includes(job.kind)) return null;
+  const kind = job.kind as JobKind;
+  const isProjectJob = (PROJECT_JOB_KINDS as readonly string[]).includes(kind);
+  const documentId = isProjectJob ? null : await jobDocumentId(db, job);
   const phase = asPhase(job.phase);
   const errorCode = (job.safeErrorCode as JobErrorCode | null) ?? null;
   return {
     id: job.id,
-    kind: job.kind,
+    kind,
     status: job.status as JobStatusResponse["status"],
     phase,
     phaseLabel: JOB_PHASE_LABELS[phase],
@@ -233,8 +238,11 @@ export async function jobStatusForOwner(
     errorCode,
     errorMessage: jobErrorMessage(errorCode),
     canRetry: canRetryJob(job),
-    canCancel: !isTerminalJobStatus(job.status),
+    // A rendering export takes seconds; one still queued can be stopped, as can generation.
+    canCancel:
+      !isTerminalJobStatus(job.status) && (kind !== "render-export" || job.status === "queued"),
     documentId,
+    projectId: isProjectJob ? job.targetId : null,
     updatedAt: job.updatedAt.toISOString(),
   };
 }
