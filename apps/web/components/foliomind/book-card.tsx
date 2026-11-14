@@ -11,6 +11,8 @@ export interface BookCardProps {
   author?: string | null;
   category?: string | null;
   label?: string | null;
+  /** A publisher's uploaded cover; the CSS cover art otherwise. */
+  coverUrl?: string | null;
   href: string;
   /** Reading progress 0–100 for "Pick up where you left off". */
   progress?: number | null;
@@ -28,6 +30,7 @@ export function BookCard({
   author,
   category,
   label,
+  coverUrl,
   href,
   progress,
   badge,
@@ -42,6 +45,7 @@ export function BookCard({
           title={title}
           author={author}
           label={label}
+          imageUrl={coverUrl}
           className="transition-transform duration-200 group-hover:-translate-y-1"
         />
         {action ? <div className="absolute top-2 right-2 z-10">{action}</div> : null}

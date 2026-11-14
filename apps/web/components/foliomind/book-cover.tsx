@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /*
@@ -35,6 +36,12 @@ interface BookCoverProps {
   label?: string | null;
   /** Decorative when the title is also shown as text next to the cover. */
   decorative?: boolean;
+  /** A publisher's uploaded cover (public file); the CSS art is the fallback. */
+  imageUrl?: string | null;
+  /** next/image `sizes` for the uploaded cover. */
+  sizes?: string;
+  /** Load the uploaded cover eagerly (the largest image above the fold). */
+  priority?: boolean;
   className?: string;
 }
 
@@ -44,8 +51,30 @@ export function BookCover({
   author,
   label,
   decorative = true,
+  imageUrl,
+  sizes = "(min-width: 1181px) 220px, (min-width: 761px) 30vw, 45vw",
+  priority = false,
   className,
 }: BookCoverProps) {
+  if (imageUrl) {
+    return (
+      <div
+        className={cn(
+          "relative aspect-[2/3] w-full -rotate-2 overflow-hidden rounded-[5px] bg-muted shadow-cover",
+          className,
+        )}
+      >
+        <Image
+          src={imageUrl}
+          alt={decorative ? "" : `Cover of ${title}${author ? ` by ${author}` : ""}`}
+          fill
+          sizes={sizes}
+          priority={priority}
+          className="object-cover"
+        />
+      </div>
+    );
+  }
   const variant = COVER_VARIANTS[coverVariantFor(id)];
   return (
     <div

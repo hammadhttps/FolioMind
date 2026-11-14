@@ -5,10 +5,16 @@ import { Hero, HeroLink } from "../hero";
 
 /**
  * Home (Section 20 #1): lavender hero, two entry actions and three benefit
- * cards. Featured books appear only once approved books exist (Phase 9); the
- * section is omitted rather than filled with placeholders.
+ * cards, then the newest approved books in `featured`. With no approved books
+ * that slot renders nothing, rather than placeholders or invented numbers.
  */
-export function HomeScreen({ primaryAction }: { primaryAction: ReactNode }) {
+export function HomeScreen({
+  primaryAction,
+  featured,
+}: {
+  primaryAction: ReactNode;
+  featured?: ReactNode;
+}) {
   return (
     <div className="mx-auto w-full max-w-[1600px] px-[15px] py-6 sm:px-[18px] md:px-[25px] md:py-10 xl:px-9">
       <Hero
@@ -56,6 +62,7 @@ export function HomeScreen({ primaryAction }: { primaryAction: ReactNode }) {
           />
         </ul>
       </section>
+      {featured}
     </div>
   );
 }

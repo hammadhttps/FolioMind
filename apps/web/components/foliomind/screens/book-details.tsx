@@ -1,30 +1,29 @@
-import { ArrowLeft, Bookmark, BookOpen, Building2, Flag } from "lucide-react";
+import type { PublicBook } from "@foliomind/contracts";
+import { languageName } from "@foliomind/contracts";
+import { ArrowLeft, Building2 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/format";
 import { BookCover } from "../book-cover";
-import { ComingSoonButton } from "../coming-soon";
 import { StatusAlert } from "../status-alert";
 
-export interface BookDetails {
-  id: string;
-  title: string;
-  author: string;
-  publisher: { name: string; slug: string };
-  description: string;
-  category: string;
-  pageCount: number;
-  language: string;
-  edition?: string | null;
-  updatedLabel: string;
-  licenseStatement: string;
-}
-
 /**
- * Book Details layout (Section 20 #3). Phase 9 supplies approved books; until
- * then the route returns 404 for every ID and this view appears in /dev/ui.
+ * Book Details (Sections 5 row 3 and 20 #3): title, cover, description, author,
+ * language, categories, page count, publisher, updated date and the licensing
+ * statement. Reading, saving and reporting arrive in the `actions` and `report`
+ * slots, which depend on who is looking.
  */
-export function BookDetailsScreen({ book }: { book: BookDetails }) {
+export function BookDetailsScreen({
+  book,
+  actions,
+  report,
+}: {
+  book: PublicBook;
+  actions?: ReactNode;
+  report?: ReactNode;
+}) {
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" className="-ml-3 text-muted-foreground">
@@ -40,15 +39,26 @@ export function BookDetailsScreen({ book }: { book: BookDetails }) {
             id={book.id}
             title={book.title}
             author={book.author}
-            label={book.edition}
+            label={book.publisher.name}
+            imageUrl={book.coverUrl}
+            sizes="(min-width: 761px) 260px, 60vw"
+            priority
             decorative={false}
           />
         </div>
 
         <div className="min-w-0 space-y-5">
-          <Badge variant="soft">{book.category}</Badge>
+          {book.categories.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {book.categories.map((category) => (
+                <Badge key={category.slug} variant="soft" asChild>
+                  <Link href={`/library?category=${category.slug}`}>{category.name}</Link>
+                </Badge>
+              ))}
+            </div>
+          ) : null}
           <div className="space-y-2">
-            <h1 className="font-serif text-[2rem]/tight font-semibold tracking-[-0.01em] text-balance md:text-[2.5rem]/tight">
+            <h1 className="font-serif text-[2rem]/tight font-semibold tracking-[-0.01em] text-balance [overflow-wrap:anywhere] md:text-[2.5rem]/tight">
               {book.title}
             </h1>
             <p className="text-base text-muted-foreground">
@@ -62,43 +72,25 @@ export function BookDetailsScreen({ book }: { book: BookDetails }) {
               </Link>
             </p>
           </div>
-          <p className="max-w-2xl text-base/relaxed">{book.description}</p>
+          <p className="max-w-2xl text-base/relaxed [overflow-wrap:anywhere] whitespace-pre-line">
+            {book.description}
+          </p>
 
-          <dl className="grid max-w-xl grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-            <Meta term="Pages" value={String(book.pageCount)} />
-            <Meta term="Language" value={book.language} />
-            <Meta term="Edition" value={book.edition ?? "—"} />
-            <Meta term="Updated" value={book.updatedLabel} />
+          <dl className="grid max-w-xl grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+            <Meta term="Pages" value={book.pageCount ? String(book.pageCount) : "—"} />
+            <Meta term="Language" value={languageName(book.language)} />
+            <Meta term="Updated" value={formatDate(book.publishedAt)} />
           </dl>
 
-          <div className="flex flex-wrap gap-3">
-            <ComingSoonButton size="lg" reason="Reading opens with the catalog">
-              <BookOpen aria-hidden="true" />
-              Start reading
-            </ComingSoonButton>
-            <ComingSoonButton
-              size="lg"
-              variant="outline"
-              aria-pressed={false}
-              reason="Saving opens with the catalog"
-            >
-              <Bookmark aria-hidden="true" />
-              Save to library
-            </ComingSoonButton>
-          </div>
+          {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
 
           <StatusAlert tone="info" title="License">
-            {book.licenseStatement}
+            <span className="[overflow-wrap:anywhere] whitespace-pre-line">
+              {book.licenseStatement}
+            </span>
           </StatusAlert>
 
-          <ComingSoonButton
-            variant="link"
-            reason="Reports open with the catalog"
-            className="text-muted-foreground"
-          >
-            <Flag aria-hidden="true" />
-            Report a concern
-          </ComingSoonButton>
+          {report}
         </div>
       </div>
     </div>
