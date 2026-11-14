@@ -18,6 +18,7 @@ export const EVENT_NAMES = {
   projectSectionRequested: "project/section.requested",
   projectExportRequested: "project/export.requested",
   projectGenerationCancelled: "project/generation.cancelled",
+  catalogBookPublished: "catalog/book.published",
 } as const;
 
 export type EventName = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES];
@@ -68,7 +69,7 @@ export type DocumentUrlImportRequestedData = z.infer<typeof documentUrlImportReq
 export const notificationCreatedData = z.object({
   userId: z.uuid(),
   type: notificationTypeSchema,
-  /** The document or project the notice is about. */
+  /** The document, project, publisher profile or book revision the notice is about. */
   subjectId: z.uuid(),
   /** Unique per user; a repeat delivery writes nothing new. */
   operationKey: z.string().min(1).max(200),
@@ -112,6 +113,19 @@ export const projectGenerationCancelledData = z.object({
 export type ProjectGenerationCancelledData = z.infer<typeof projectGenerationCancelledData>;
 
 /**
+ * A moderator approved a book revision (Section 6 "Publishing"). Worker A's
+ * notify-followers tells the publisher's followers in bounded batches, each
+ * notice going through send-notification.
+ */
+export const catalogBookPublishedData = z.object({
+  bookId: z.uuid(),
+  revisionId: z.uuid(),
+  publisherId: z.uuid(),
+  operationKey: z.string().min(1).max(200),
+});
+export type CatalogBookPublishedData = z.infer<typeof catalogBookPublishedData>;
+
+/**
  * Payload schema per event name. The outbox validates against it before a row
  * is written, so only well-formed events are ever queued for delivery.
  */
@@ -126,6 +140,7 @@ export const EVENT_SCHEMAS = {
   [EVENT_NAMES.projectSectionRequested]: projectSectionRequestedData,
   [EVENT_NAMES.projectExportRequested]: projectExportRequestedData,
   [EVENT_NAMES.projectGenerationCancelled]: projectGenerationCancelledData,
+  [EVENT_NAMES.catalogBookPublished]: catalogBookPublishedData,
 } as const satisfies Record<EventName, z.ZodType>;
 
 export type EventData<TName extends EventName> = z.infer<(typeof EVENT_SCHEMAS)[TName]>;

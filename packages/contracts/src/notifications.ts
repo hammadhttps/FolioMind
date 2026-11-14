@@ -15,13 +15,20 @@ export const NOTIFICATION_TYPES = [
   "generation_failed",
   "export_ready",
   "export_failed",
+  "publisher_approved",
+  "publisher_rejected",
+  "submission_approved",
+  "submission_rejected",
+  "book_taken_down",
+  "publisher_new_book",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const notificationTypeSchema = z.enum(NOTIFICATION_TYPES);
 
 /**
  * The Settings switches (Section 28 "Notification preferences"): one per group.
- * Missing keys mean "on". Moderation and publisher updates join in Phase 9.
+ * Missing keys mean "on". A followed publisher's updates also need that
+ * follow's own notify switch (Section 11 "Follow").
  */
 export const NOTIFICATION_PREFERENCES = {
   documents: {
@@ -33,6 +40,22 @@ export const NOTIFICATION_PREFERENCES = {
     label: "Projects",
     description: "When a draft or a PDF export is ready, or couldn't be finished.",
     types: ["draft_ready", "generation_failed", "export_ready", "export_failed"],
+  },
+  publishing: {
+    label: "Publishing",
+    description: "Decisions about your publisher application and the books you submit.",
+    types: [
+      "publisher_approved",
+      "publisher_rejected",
+      "submission_approved",
+      "submission_rejected",
+      "book_taken_down",
+    ],
+  },
+  following: {
+    label: "Publishers you follow",
+    description: "When a publisher you follow shares a new or updated book.",
+    types: ["publisher_new_book"],
   },
 } as const satisfies Record<
   string,
@@ -50,6 +73,8 @@ export function preferenceFor(type: NotificationType): NotificationPreferenceKey
 export const notificationPreferencesSchema = z.object({
   documents: z.boolean(),
   projects: z.boolean(),
+  publishing: z.boolean(),
+  following: z.boolean(),
 });
 export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 
@@ -57,7 +82,12 @@ export type NotificationPreferences = z.infer<typeof notificationPreferencesSche
 export function readNotificationPreferences(
   stored: Record<string, unknown> | null | undefined,
 ): NotificationPreferences {
-  return { documents: stored?.documents !== false, projects: stored?.projects !== false };
+  return {
+    documents: stored?.documents !== false,
+    projects: stored?.projects !== false,
+    publishing: stored?.publishing !== false,
+    following: stored?.following !== false,
+  };
 }
 
 /** The drawer's page size (Section 24 keyset "Load more"). */

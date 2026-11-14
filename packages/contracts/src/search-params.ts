@@ -10,7 +10,7 @@ import { z } from "zod";
 export const SEARCH_MIN_LENGTH = 2;
 export const SEARCH_MAX_LENGTH = 100;
 
-/** The prototype's Explore pills (Section 20) until Phase 9 builds them from category facets. */
+/** The prototype's Explore categories (Section 20); seeded first, before the general set. */
 export const CATALOG_CATEGORIES = [
   { slug: "environment", name: "Environment" },
   { slug: "design", name: "Design" },
@@ -30,7 +30,7 @@ export const STARTER_CATEGORIES = [
   { slug: "philosophy", name: "Philosophy" },
 ] as const;
 
-/** English first at launch (Section 1). */
+/** English first at launch (Section 1); Explore's language filter lists the languages in its facets. */
 export const CATALOG_LANGUAGES = [{ code: "en", name: "English" }] as const;
 
 export const CATALOG_SORTS = ["newest", "title", "relevance"] as const;
@@ -60,11 +60,22 @@ const slugList = z
   )
   .catch([]);
 
-/** Explore `/library`: q, category (comma list), language, sort, page. */
+const slugParam = z
+  .preprocess(
+    first,
+    z
+      .string()
+      .regex(/^[a-z0-9-]{1,60}$/)
+      .optional(),
+  )
+  .catch(undefined);
+
+/** Explore `/library`: q, category (comma list), language, publisher, sort, page. */
 export const catalogSearchParamsSchema = z
   .object({
     q: searchTerm,
     category: slugList,
+    publisher: slugParam,
     language: z
       .preprocess(
         first,
@@ -142,6 +153,109 @@ export const projectsSearchParamsSchema = z.object({
 });
 
 export type ProjectsSearchParams = z.infer<typeof projectsSearchParamsSchema>;
+
+export const PUBLISHER_BOOK_SORTS = ["newest", "title"] as const;
+
+/** Publisher Profile's book grid (Section 24): title search, category, newest or title, pages of 24. */
+export const publisherBooksSearchParamsSchema = z.object({
+  q: searchTerm,
+  category: slugList,
+  sort: z.preprocess(first, z.enum(PUBLISHER_BOOK_SORTS)).catch("newest"),
+  page: z.preprocess(first, z.coerce.number().int().min(1).max(CATALOG_MAX_PAGE)).catch(1),
+});
+export type PublisherBooksSearchParams = z.infer<typeof publisherBooksSearchParamsSchema>;
+
+export const PUBLISHING_STATUS_FILTERS = [
+  "all",
+  "draft",
+  "pending",
+  "published",
+  "rejected",
+  "unpublished",
+] as const;
+
+/** Publisher Dashboard (Section 24): title search, status, recently updated, keyset pages of 20. */
+export const publishingSearchParamsSchema = z.object({
+  q: searchTerm,
+  status: z.preprocess(first, z.enum(PUBLISHING_STATUS_FILTERS)).catch("all"),
+  tab: z.preprocess(first, z.enum(["books", "stats", "profile"])).catch("books"),
+  /** The book editor opens in place of the list. */
+  book: z.preprocess(first, z.uuid().optional()).catch(undefined),
+  after: cursorParam,
+  before: cursorParam,
+  start: z.preprocess(first, z.coerce.number().int().min(1).max(100_000)).catch(1),
+});
+export type PublishingSearchParams = z.infer<typeof publishingSearchParamsSchema>;
+
+const dateParam = z.preprocess(first, z.iso.date().optional()).catch(undefined);
+const startParam = z.preprocess(first, z.coerce.number().int().min(1).max(100_000)).catch(1);
+
+/** Content Moderation (Section 24): title or author, type, status, oldest first, pages of 25. */
+export const MODERATION_TYPES = ["submission", "report"] as const;
+export const MODERATION_STATUSES = ["open", "decided"] as const;
+export const moderationSearchParamsSchema = z.object({
+  q: searchTerm,
+  type: z.preprocess(first, z.enum(MODERATION_TYPES)).catch("submission"),
+  status: z.preprocess(first, z.enum(MODERATION_STATUSES)).catch("open"),
+  /** The submission under review, shown beside the queue. */
+  review: z.preprocess(first, z.uuid().optional()).catch(undefined),
+  after: cursorParam,
+  before: cursorParam,
+  start: startParam,
+});
+export type ModerationSearchParams = z.infer<typeof moderationSearchParamsSchema>;
+
+export const ADMIN_TAB_VALUES = ["health", "users", "applications", "usage", "audit"] as const;
+export const ADMIN_USER_ROLES = ["all", "reader", "publisher", "admin"] as const;
+export const ADMIN_USER_STATUSES = ["all", "active", "suspended", "deleting"] as const;
+export const ADMIN_USER_PLANS = ["all", "free", "pro"] as const;
+export const ADMIN_JOB_KINDS = [
+  "all",
+  "ingest-document",
+  "import-url",
+  "generate-outline",
+  "generate-draft",
+  "regenerate-section",
+  "render-export",
+] as const;
+export const ADMIN_JOB_STATUSES = [
+  "all",
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "cancelled",
+] as const;
+export const ADMIN_USAGE_RANGES = ["7", "30", "90"] as const;
+
+/**
+ * Admin Overview: one URL for every tab (Section 24). Switching tabs clears the
+ * other tabs' filters; each list keeps its own keyset cursor in after/before.
+ */
+export const adminSearchParamsSchema = z.object({
+  tab: z.preprocess(first, z.enum(ADMIN_TAB_VALUES)).catch("health"),
+  q: searchTerm,
+  role: z.preprocess(first, z.enum(ADMIN_USER_ROLES)).catch("all"),
+  status: z.preprocess(first, z.string().max(20).optional()).catch(undefined),
+  plan: z.preprocess(first, z.enum(ADMIN_USER_PLANS)).catch("all"),
+  kind: z.preprocess(first, z.enum(ADMIN_JOB_KINDS)).catch("all"),
+  action: z
+    .preprocess(
+      first,
+      z
+        .string()
+        .regex(/^[a-z_.]{1,60}$/)
+        .optional(),
+    )
+    .catch(undefined),
+  from: dateParam,
+  to: dateParam,
+  range: z.preprocess(first, z.enum(ADMIN_USAGE_RANGES)).catch("30"),
+  after: cursorParam,
+  before: cursorParam,
+  start: startParam,
+});
+export type AdminSearchParams = z.infer<typeof adminSearchParamsSchema>;
 
 export function parseSearchParams<T extends z.ZodType>(
   schema: T,

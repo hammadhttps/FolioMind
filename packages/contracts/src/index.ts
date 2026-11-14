@@ -1,4 +1,6 @@
 export * from "./account";
+export * from "./admin";
+export * from "./catalog";
 export * from "./chat";
 export * from "./documents";
 export * from "./env";
@@ -12,4 +14,5 @@ export * from "./notifications";
 export * from "./plans";
 export * from "./project-state";
 export * from "./projects";
+export * from "./publishing";
 export * from "./workspaces";
