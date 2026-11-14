@@ -4,6 +4,8 @@ import {
   expireAbandoned,
   expireUploadIntents,
   filesToDelete,
+  followersToNotify,
+  liftExpiredSuspensions,
   markAssetsDeleted,
   purgeDeletedDocuments,
   purgeDeletedProjects,
@@ -14,7 +16,7 @@ import {
   unknownFileKeys,
 } from "@foliomind/domain";
 import { cron, type Inngest } from "inngest";
-import { notificationCreated } from "../../events";
+import { catalogBookPublished, notificationCreated } from "../../events";
 import { controlConcurrency, type WorkerADeps } from "./shared";
 
 /*
@@ -43,6 +45,67 @@ export function createSendNotificationFunction(inngest: Inngest, deps: WorkerADe
           eventKey: event.data.operationKey,
         }),
       ),
+  );
+}
+
+/** Followers told per step, and the most a single approval tells (bounded fan-out). */
+export const FOLLOWER_BATCH_SIZE = 100;
+export const FOLLOWER_MAX_BATCHES = 50;
+
+/**
+ * A moderator approved a revision (Section 6 "Publishing"): the publisher's
+ * followers who asked for notices each get one through send-notification, in
+ * bounded batches. Event IDs are unique per follower and revision, so a retried
+ * batch never notifies anyone twice.
+ */
+export function createNotifyFollowersFunction(inngest: Inngest, deps: WorkerADeps) {
+  return inngest.createFunction(
+    {
+      id: "notify-followers",
+      name: "Notify followers",
+      triggers: [catalogBookPublished],
+      retries: 3,
+      idempotency: "event.data.operationKey",
+      concurrency: controlConcurrency(deps.concurrency.control),
+    },
+    async ({ event, step }) => {
+      const { publisherId, revisionId } = event.data;
+      let after: string | null = null;
+      let notified = 0;
+      for (let batch = 1; batch <= FOLLOWER_MAX_BATCHES; batch += 1) {
+        const page: { userIds: string[]; next: string | null } = await step.run(
+          `followers-${batch}`,
+          () =>
+            followersToNotify(deps.db, {
+              publisherId,
+              revisionId,
+              after,
+              limit: FOLLOWER_BATCH_SIZE,
+            }),
+        );
+        if (page.userIds.length === 0) break;
+        await step.sendEvent(
+          `notify-${batch}`,
+          page.userIds.map((userId) => {
+            const operationKey = `book-published:${revisionId}:${userId}`;
+            return {
+              id: operationKey,
+              name: notificationCreated.name,
+              data: {
+                userId,
+                type: "publisher_new_book" as const,
+                subjectId: revisionId,
+                operationKey,
+              },
+            };
+          }),
+        );
+        notified += page.userIds.length;
+        if (!page.next) break;
+        after = page.next;
+      }
+      return { notified };
+    },
   );
 }
 
@@ -158,6 +221,10 @@ export function createCleanupMaintenanceFunction(inngest: Inngest, deps: WorkerA
         purgeOldNotifications(db),
       );
       const oldIntents = await step.run("intent-retention", () => purgeOldIntents(db));
+      const liftedSuspensions = await step.run(
+        "lift-expired-suspensions",
+        async () => (await liftExpiredSuspensions(db, { limit: 500 })).length,
+      );
       const summary = {
         intents,
         reservations,
@@ -168,6 +235,7 @@ export function createCleanupMaintenanceFunction(inngest: Inngest, deps: WorkerA
         orphanFiles,
         notifications,
         oldIntents,
+        liftedSuspensions,
       };
       deps.logger.info(summary, "maintenance finished");
       return summary;

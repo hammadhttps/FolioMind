@@ -1,4 +1,5 @@
 import {
+  catalogBookPublishedData,
   documentUrlImportRequestedData,
   documentVersionCancelledData,
   documentVersionUploadedData,
@@ -52,4 +53,8 @@ export const projectExportRequested = eventType(EVENT_NAMES.projectExportRequest
 
 export const projectGenerationCancelled = eventType(EVENT_NAMES.projectGenerationCancelled, {
   schema: projectGenerationCancelledData,
+});
+
+export const catalogBookPublished = eventType(EVENT_NAMES.catalogBookPublished, {
+  schema: catalogBookPublishedData,
 });

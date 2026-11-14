@@ -2,6 +2,7 @@ import type { Inngest } from "inngest";
 import {
   createCleanupMaintenanceFunction,
   createDispatchOutboxFunction,
+  createNotifyFollowersFunction,
   createSendNotificationFunction,
 } from "./functions/ingestion/control";
 import { createImportUrlFunction } from "./functions/ingestion/import-url";
@@ -23,6 +24,7 @@ export function createWorkerAFunctions(inngest: Inngest, deps: WorkerADeps) {
     createIngestDocumentFunction(inngest, deps),
     createImportUrlFunction(inngest, deps),
     createSendNotificationFunction(inngest, deps),
+    createNotifyFollowersFunction(inngest, deps),
     createDispatchOutboxFunction(inngest, deps),
     createCleanupMaintenanceFunction(inngest, deps),
   ];

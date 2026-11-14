@@ -15,56 +15,100 @@ import { decodeCursor, encodeCursor } from "../library";
  * dropped (user decision, 2026-11-04), so the bell is the only channel.
  */
 
+/** What a notice is about, looked up for its recipient when it's written. */
+interface Subject {
+  id: string;
+  title: string;
+  bookId?: string;
+  publisherName?: string;
+}
+
 interface Template {
   title: string;
-  body: (subject: string) => string;
-  /** The in-app page, from the document's or the project's ID. */
-  path: (subjectId: string) => string;
+  body: (subject: Subject) => string;
+  /** The in-app page the notice opens. */
+  path: (subject: Subject) => string;
 }
 
 const ATTENTION_PATH = "/dashboard/library?status=attention";
+const PUBLISHING_PATH = "/dashboard/publishing";
 
 const TEMPLATES: Record<NotificationType, Template> = {
   document_ready: {
     title: "Your PDF is ready to read.",
-    body: (title) => `“${title}” is ready for reading and questions.`,
-    path: (id) => `/read/${id}`,
+    body: ({ title }) => `“${title}” is ready for reading and questions.`,
+    path: ({ id }) => `/read/${id}`,
   },
   document_failed: {
     title: "We couldn't process your PDF.",
-    body: (title) => `“${title}” couldn't be processed. Open My Library to see why or try again.`,
+    body: ({ title }) =>
+      `“${title}” couldn't be processed. Open My Library to see why or try again.`,
     path: () => ATTENTION_PATH,
   },
   document_needs_ocr: {
     title: "This PDF has no readable text.",
-    body: (title) =>
+    body: ({ title }) =>
       `“${title}” looks scanned, so it can't be searched or used for answers. You can still read it.`,
     path: () => ATTENTION_PATH,
   },
   import_failed: {
     title: "We couldn't import that article.",
-    body: (title) => `“${title}” couldn't be imported. Open My Library to see why or try again.`,
+    body: ({ title }) =>
+      `“${title}” couldn't be imported. Open My Library to see why or try again.`,
     path: () => ATTENTION_PATH,
   },
   draft_ready: {
     title: "Your draft is ready to edit.",
-    body: (title) => `“${title}” is drafted. Open it to read and edit.`,
-    path: (id) => `/dashboard/projects/${id}`,
+    body: ({ title }) => `“${title}” is drafted. Open it to read and edit.`,
+    path: ({ id }) => `/dashboard/projects/${id}`,
   },
   generation_failed: {
     title: "We couldn't finish your project.",
-    body: (title) => `“${title}” couldn't be finished. Open it to see why or try again.`,
-    path: (id) => `/dashboard/projects/${id}`,
+    body: ({ title }) => `“${title}” couldn't be finished. Open it to see why or try again.`,
+    path: ({ id }) => `/dashboard/projects/${id}`,
   },
   export_ready: {
     title: "Your PDF is ready.",
-    body: (title) => `“${title}” is ready to download.`,
-    path: (id) => `/dashboard/projects/${id}`,
+    body: ({ title }) => `“${title}” is ready to download.`,
+    path: ({ id }) => `/dashboard/projects/${id}`,
   },
   export_failed: {
     title: "We couldn't export your PDF.",
-    body: (title) => `“${title}” couldn't be exported. Open it to see why or try again.`,
-    path: (id) => `/dashboard/projects/${id}`,
+    body: ({ title }) => `“${title}” couldn't be exported. Open it to see why or try again.`,
+    path: ({ id }) => `/dashboard/projects/${id}`,
+  },
+  publisher_approved: {
+    title: "You're now a FolioMind publisher.",
+    body: ({ title }) =>
+      `Your application for “${title}” was approved. You can add your first book.`,
+    path: () => PUBLISHING_PATH,
+  },
+  publisher_rejected: {
+    title: "Your publisher application wasn't approved.",
+    body: ({ title }) =>
+      `The application for “${title}” wasn't approved. Open Publishing to read why.`,
+    path: () => PUBLISHING_PATH,
+  },
+  submission_approved: {
+    title: "Your book is live.",
+    body: ({ title }) => `“${title}” was approved and is now in the library.`,
+    path: ({ bookId }) => `/books/${bookId}`,
+  },
+  submission_rejected: {
+    title: "Your submission needs changes.",
+    body: ({ title }) => `“${title}” wasn't approved. Open Publishing to read why and revise it.`,
+    path: ({ bookId }) => `${PUBLISHING_PATH}?book=${bookId}`,
+  },
+  book_taken_down: {
+    title: "A book of yours was removed.",
+    body: ({ title }) =>
+      `“${title}” was removed from the library by moderation. Open Publishing to read why.`,
+    path: ({ bookId }) => `${PUBLISHING_PATH}?book=${bookId}`,
+  },
+  publisher_new_book: {
+    title: "New from a publisher you follow.",
+    body: ({ title, publisherName }) => `${publisherName ?? "A publisher"} published “${title}”.`,
+    path: ({ bookId }) => `/books/${bookId}`,
   },
 };
 
@@ -74,24 +118,67 @@ const PROJECT_TYPES: readonly NotificationType[] = [
   "export_ready",
   "export_failed",
 ];
+const PUBLISHER_TYPES: readonly NotificationType[] = ["publisher_approved", "publisher_rejected"];
+const OWN_BOOK_TYPES: readonly NotificationType[] = [
+  "submission_approved",
+  "submission_rejected",
+  "book_taken_down",
+];
 
-/** The owner's title for what the notice is about; null when it's gone or was never theirs. */
-async function subjectTitle(
+/**
+ * The recipient's view of what the notice is about; null when it's gone, was
+ * never theirs, or (for a followed publisher) they no longer follow with
+ * notices on or the book isn't live anymore.
+ */
+async function subjectFor(
   db: Executor,
   input: { userId: string; type: NotificationType; subjectId: string },
-): Promise<string | null> {
+): Promise<Subject | null> {
   if (PROJECT_TYPES.includes(input.type)) {
     const [project] = await db
       .select({ title: projects.title, deletedAt: projects.deletedAt })
       .from(projects)
       .where(and(eq(projects.id, input.subjectId), eq(projects.ownerId, input.userId)));
-    return project && !project.deletedAt ? project.title : null;
+    return project && !project.deletedAt ? { id: input.subjectId, title: project.title } : null;
+  }
+  if (PUBLISHER_TYPES.includes(input.type)) {
+    const [profile] = await db.execute<{ display_name: string }>(sql`
+      select display_name from publisher_profiles
+      where id = ${input.subjectId} and user_id = ${input.userId}`);
+    return profile ? { id: input.subjectId, title: profile.display_name } : null;
+  }
+  if (OWN_BOOK_TYPES.includes(input.type)) {
+    const [revision] = await db.execute<{ title: string; book_id: string }>(sql`
+      select br.title, br.book_id from book_revisions br
+      join books b on b.id = br.book_id
+      join publisher_profiles p on p.id = b.publisher_id
+      where br.id = ${input.subjectId} and p.user_id = ${input.userId} and b.deleted_at is null`);
+    return revision
+      ? { id: input.subjectId, title: revision.title, bookId: revision.book_id }
+      : null;
+  }
+  if (input.type === "publisher_new_book") {
+    const [revision] = await db.execute<{ title: string; book_id: string; publisher: string }>(sql`
+      select br.title, br.book_id, p.display_name as publisher from book_revisions br
+      join books b on b.id = br.book_id and b.published_revision_id = br.id
+      join publisher_profiles p on p.id = b.publisher_id
+      join publisher_follows f on f.publisher_id = p.id and f.user_id = ${input.userId}
+      where br.id = ${input.subjectId} and b.status = 'published' and b.deleted_at is null
+        and f.notify = true`);
+    return revision
+      ? {
+          id: input.subjectId,
+          title: revision.title,
+          bookId: revision.book_id,
+          publisherName: revision.publisher,
+        }
+      : null;
   }
   const [document] = await db
     .select({ title: documents.title, status: documents.status })
     .from(documents)
     .where(and(eq(documents.id, input.subjectId), eq(documents.ownerId, input.userId)));
-  return document?.status === "active" ? document.title : null;
+  return document?.status === "active" ? { id: input.subjectId, title: document.title } : null;
 }
 
 const clip = (value: string, max: number) =>
@@ -114,8 +201,8 @@ export async function createNotification(
   if (!preferences[preferenceFor(input.type)]) return { created: false, skipped: "preference" };
 
   // Something deleted before the notice went out needs no notice.
-  const title = await subjectTitle(db, input);
-  if (title === null) return { created: false, skipped: "subject_gone" };
+  const subject = await subjectFor(db, input);
+  if (subject === null) return { created: false, skipped: "subject_gone" };
 
   const template = TEMPLATES[input.type];
   const inserted = await db
@@ -125,8 +212,15 @@ export async function createNotification(
       eventKey: input.eventKey,
       type: input.type,
       title: template.title,
-      safeBody: clip(template.body(clip(title, 120)), 280),
-      targetPath: template.path(input.subjectId),
+      safeBody: clip(
+        template.body({
+          ...subject,
+          title: clip(subject.title, 120),
+          ...(subject.publisherName ? { publisherName: clip(subject.publisherName, 80) } : {}),
+        }),
+        280,
+      ),
+      targetPath: template.path(subject),
     })
     .onConflictDoNothing({ target: [notifications.userId, notifications.eventKey] })
     .returning({ id: notifications.id });
