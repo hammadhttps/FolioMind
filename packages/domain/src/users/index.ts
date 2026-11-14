@@ -34,6 +34,8 @@ export const userSnapshotSchema = z.object({
 export type UserSnapshot = z.infer<typeof userSnapshotSchema>;
 
 export async function loadUserSnapshot(db: Executor, userId: string): Promise<UserSnapshot | null> {
+  // A suspension with an end date lifts itself once that date passes.
+  await liftExpiredSuspensions(db, { userId });
   const [row] = await db
     .select({
       id: users.id,
@@ -109,6 +111,12 @@ export async function signIn(
 
     if (existing) {
       if (existing.deletedAt || existing.status === "deleting") return refused("deleted");
+      if (
+        existing.status === "suspended" &&
+        (await liftExpiredSuspensions(tx, { userId: existing.id, now })).length > 0
+      ) {
+        existing.status = "active";
+      }
       if (existing.status === "suspended") {
         await writeAudit(tx, {
           actorId: existing.id,
@@ -285,4 +293,36 @@ export async function setAvatar(
       await tx.update(assets).set({ state: "deleting" }).where(eq(assets.id, previous.assetId));
     }
   });
+}
+
+/**
+ * Lifts suspensions whose end date has passed, with an audit entry by the
+ * system. Called when an account signs in or its snapshot reloads, and by the
+ * daily cleanup. Returns the lifted user IDs.
+ */
+export async function liftExpiredSuspensions(
+  db: Executor,
+  options: { userId?: string; now?: Date; limit?: number } = {},
+): Promise<string[]> {
+  const now = (options.now ?? new Date()).toISOString();
+  const lifted = await db.execute<{ id: string }>(sql`
+    update users set status = 'active', suspended_until = null, updated_at = now()
+    where id in (
+      select id from users
+      where status = 'suspended' and suspended_until is not null
+        and suspended_until <= ${now}::timestamptz
+        ${options.userId ? sql`and id = ${options.userId}` : sql``}
+      limit ${options.limit ?? 100}
+      for update skip locked)
+    returning id`);
+  for (const row of lifted) {
+    await writeAudit(db, {
+      actorId: null,
+      action: "user.unsuspended",
+      targetType: "user",
+      targetId: row.id,
+      metadata: { automatic: true },
+    });
+  }
+  return lifted.map((row) => row.id);
 }
