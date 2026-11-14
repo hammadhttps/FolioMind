@@ -18,6 +18,7 @@ import { SettingsScreen } from "@/components/foliomind/screens/settings";
 import {
   SAMPLE_ALLOWANCE,
   SAMPLE_BOOK,
+  SAMPLE_CATALOG_BOOKS,
   SAMPLE_COLLECTIONS,
   SAMPLE_LIBRARY,
   SAMPLE_PROJECTS,
@@ -153,6 +154,12 @@ export const SCREEN_PREVIEWS: Record<string, ScreenPreview> = {
   "publisher-profile": {
     title: "Publisher Profile (sample)",
     shell: "public",
-    render: () => <PublisherProfileScreen publisher={SAMPLE_PUBLISHER} />,
+    render: () => (
+      <PublisherProfileScreen
+        publisher={SAMPLE_PUBLISHER}
+        books={SAMPLE_CATALOG_BOOKS}
+        total={SAMPLE_CATALOG_BOOKS.length}
+      />
+    ),
   },
 };

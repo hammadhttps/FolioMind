@@ -76,7 +76,7 @@ export interface SignInMethodView {
 export function SettingsScreen({
   methods,
   identityResult,
-  notificationPreferences = { documents: true, projects: true },
+  notificationPreferences = { documents: true, projects: true, publishing: true, following: true },
 }: {
   methods: SignInMethodView[];
   /** `?identity=` outcome from the link callback or a reauthentication. */

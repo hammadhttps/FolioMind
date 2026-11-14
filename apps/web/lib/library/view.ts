@@ -17,6 +17,7 @@ export interface LibraryCard {
   id: string;
   documentId: string | null;
   bookId: string | null;
+  bookDocumentId: string | null;
   title: string;
   author: string | null;
   kind: LibraryEntry["kind"];

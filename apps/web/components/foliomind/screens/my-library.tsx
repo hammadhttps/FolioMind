@@ -9,6 +9,7 @@ import {
 } from "@foliomind/contracts";
 import { SEARCH_MIN_LENGTH } from "@foliomind/contracts/search-params";
 import {
+  BookmarkMinus,
   ExternalLink,
   FileUp,
   FolderPlus,
@@ -66,6 +67,7 @@ import {
   setCollectionMembershipAction,
   updateCollectionAction,
 } from "@/lib/library/actions";
+import { setBookSavedAction } from "@/lib/catalog/actions";
 import type { LibraryCard } from "@/lib/library/view";
 import { showRateLimitToast } from "@/lib/rate-limit-toast";
 import { libraryParsers } from "@/lib/search-params";
@@ -425,6 +427,22 @@ function ItemMenu({
     onSettled();
   }
 
+  /** Removes only this reader's save; the publisher's book is untouched (Section 5 row 7). */
+  async function unsave() {
+    if (!item.bookId || preview) return;
+    onChange("removed");
+    const result = await setBookSavedAction({ bookId: item.bookId, saved: false }).catch(
+      () => null,
+    );
+    if (!result?.ok) {
+      onChange(null);
+      reportFailure(result, "We couldn't remove that book. Please try again.");
+      return;
+    }
+    toast.success("Removed from your library.");
+    onSettled();
+  }
+
   async function remove() {
     if (!item.documentId || preview) return;
     onChange("removed");
@@ -456,6 +474,22 @@ function ItemMenu({
             <DropdownMenuItem asChild>
               <Link href={`/read/${item.documentId}`}>Open in reader</Link>
             </DropdownMenuItem>
+          ) : null}
+          {item.bookId ? (
+            <>
+              {item.bookDocumentId ? (
+                <DropdownMenuItem asChild>
+                  <Link href={`/read/${item.bookDocumentId}`}>Open in reader</Link>
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem asChild>
+                <Link href={`/books/${item.bookId}`}>View book details</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void unsave()}>
+                <BookmarkMinus aria-hidden="true" />
+                Remove from library
+              </DropdownMenuItem>
+            </>
           ) : null}
           {item.documentId ? (
             <DropdownMenuItem onSelect={() => setRenaming(true)}>

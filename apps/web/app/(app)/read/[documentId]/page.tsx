@@ -4,15 +4,17 @@ import {
   getReadableDocument,
   getReadingProgress,
   latestJobs,
+  recordBookRead,
   listAnnotations,
   listThreads,
   questionAllowance,
 } from "@foliomind/domain";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { ReaderScreen } from "@/components/foliomind/screens/reader";
-import { getDb } from "@/lib/clients";
+import { getCacheKeys, getDb, getRequestRedis } from "@/lib/clients";
 import { toAnnotationItem } from "@/lib/reader/view";
 import { requireUser } from "@/lib/session";
 
@@ -52,6 +54,17 @@ export default async function ReaderPage({
     questionAllowance(db, user.id),
   ]);
   const job = jobs?.get(document.id) ?? null;
+  if (!document.isOwner) {
+    // A catalog book: one daily read per reader for the publisher's counts (Section 7).
+    const versionId = document.version.id;
+    after(() =>
+      recordBookRead(
+        db,
+        { redis: getRequestRedis(), keys: getCacheKeys() },
+        { userId: user.id, versionId },
+      ).catch(() => false),
+    );
+  }
 
   return (
     <ReaderScreen

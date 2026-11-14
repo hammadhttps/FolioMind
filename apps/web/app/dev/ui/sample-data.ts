@@ -1,7 +1,7 @@
 import type { BookCardProps } from "@/components/foliomind/book-card";
 import type { ProjectRow } from "@/components/foliomind/projects-table";
-import type { BookDetails } from "@/components/foliomind/screens/book-details";
-import type { PublisherProfile } from "@/components/foliomind/screens/publisher-profile";
+import type { CatalogBookCard, PublicBook } from "@foliomind/contracts";
+import type { PublisherProfileView } from "@/components/foliomind/screens/publisher-profile";
 import type { CollectionView } from "@/components/foliomind/screens/my-library";
 import type { SignInMethodView } from "@/components/foliomind/screens/settings";
 import type { UploadAllowanceView } from "@/components/foliomind/upload-dialog";
@@ -50,6 +50,7 @@ const sampleCard = (n: number, title: string, status: LibraryCard["status"]): Li
   id: `00000000-0000-4000-8000-00000000010${n}`,
   documentId: `00000000-0000-4000-8000-00000000020${n}`,
   bookId: null,
+  bookDocumentId: null,
   title,
   author: null,
   kind: "upload",
@@ -159,28 +160,46 @@ export const SAMPLE_PROJECTS: ProjectRow[] = [
   },
 ];
 
-export const SAMPLE_BOOK: BookDetails = {
-  id: "sample-1",
+export const SAMPLE_BOOK: PublicBook = {
+  id: "00000000-0000-4000-8000-000000000501",
+  revisionId: "00000000-0000-4000-8000-000000000502",
   title: "Rivers of the Quiet City",
   author: "Sample Author",
   publisher: { name: "Sample Press", slug: "sample-press" },
   description:
     "Sample description for layout review. A real listing shows the publisher's description of the book here.",
-  category: "Environment",
+  language: "en",
+  categories: [{ slug: "environment", name: "Environment" }],
+  coverUrl: null,
   pageCount: 184,
-  language: "English",
-  edition: "Sample edition",
-  updatedLabel: "Sample date",
   licenseStatement: "Sample license statement. Real listings show the publisher's licensing terms.",
+  publishedAt: "2026-01-05T00:00:00.000Z",
+  documentId: "00000000-0000-4000-8000-000000000503",
+  versionId: "00000000-0000-4000-8000-000000000504",
 };
 
-export const SAMPLE_PUBLISHER: PublisherProfile = {
+export const SAMPLE_CATALOG_BOOKS: CatalogBookCard[] = SAMPLE_BOOKS.slice(0, 3).map(
+  (book, index) => ({
+    id: `00000000-0000-4000-8000-00000000051${index}`,
+    title: book.title,
+    author: book.author ?? "Sample Author",
+    language: "en",
+    coverUrl: null,
+    categories: book.category ? [{ slug: book.category.toLowerCase(), name: book.category }] : [],
+    publisher: { slug: "sample-press", name: "Sample Press" },
+    publishedAt: "2026-01-05T00:00:00.000Z",
+  }),
+);
+
+export const SAMPLE_PUBLISHER: PublisherProfileView = {
+  id: "00000000-0000-4000-8000-000000000520",
   name: "Sample Press",
   slug: "sample-press",
-  biography:
-    "Sample biography for layout review. Real profiles show the publisher's own description.",
+  bio: "Sample biography for layout review. Real profiles show the publisher's own description.",
   website: "https://example.com",
-  books: SAMPLE_BOOKS.slice(0, 3),
+  avatarUrl: null,
+  bookCount: 3,
+  followers: 12,
 };
 
 const SAMPLE_VERSION = "00000000-0000-4000-8000-0000000000a1";

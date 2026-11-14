@@ -54,7 +54,7 @@ export function Topbar({ user, onOpenSearch }: { user: SessionUser; onOpenSearch
             <Button
               variant="outline"
               onClick={onOpenSearch}
-              aria-label="Search pages"
+              aria-label="Search FolioMind"
               aria-keyshortcuts="Meta+K Control+K"
               className="size-9.5 justify-start px-0 text-muted-foreground max-sm:justify-center sm:w-48 sm:px-3 lg:w-60"
             >
