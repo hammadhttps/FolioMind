@@ -29,6 +29,13 @@
       "when": 1794003985814,
       "tag": "0003_project_studio",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794173403280,
+      "tag": "0004_publishing_admin",
+      "breakpoints": true
     }
   ]
 }

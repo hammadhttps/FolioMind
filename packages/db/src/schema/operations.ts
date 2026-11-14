@@ -106,6 +106,8 @@ export const aiRuns = pgTable(
     ),
     index("ai_runs_user_created_idx").on(t.userId, t.createdAt.desc().nullsFirst()),
     index("ai_runs_job_idx").on(t.jobId),
+    // Admin usage and cost by day (Section 5 row 15).
+    index("ai_runs_created_idx").on(t.createdAt.desc().nullsFirst()),
   ],
 );
 
@@ -196,6 +198,12 @@ export const auditLogs = pgTable(
     index("audit_logs_created_idx").on(t.createdAt.desc().nullsFirst(), t.id.desc().nullsFirst()),
     index("audit_logs_actor_idx").on(t.actorId, t.createdAt.desc().nullsFirst()),
     index("audit_logs_target_idx").on(t.targetType, t.targetId),
+    // Admin audit log filtered by action.
+    index("audit_logs_action_created_idx").on(
+      t.action,
+      t.createdAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
   ],
 );
 

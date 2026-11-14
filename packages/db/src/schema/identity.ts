@@ -31,6 +31,8 @@ export const users = pgTable(
     avatarUrl: text("avatar_url"),
     role: userRole("role").notNull().default("reader"),
     status: userStatus("status").notNull().default("active"),
+    /** An admin suspension's optional end (Section 28 "Suspend user"); null means until lifted. */
+    suspendedUntil: timestamptz("suspended_until"),
     deletedAt: timestamptz("deleted_at"),
     ...timestamps(),
   },

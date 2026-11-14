@@ -9,6 +9,7 @@ import {
   primaryKey,
   text,
   unique,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -37,7 +38,11 @@ export const publisherProfiles = pgTable(
     reviewReason: text("review_reason"),
     ...timestamps(),
   },
-  (t) => [index("publisher_profiles_status_idx").on(t.status, t.createdAt, t.id)],
+  (t) => [
+    index("publisher_profiles_status_idx").on(t.status, t.createdAt, t.id),
+    // Section 28: 3–40 characters of lowercase letters, digits and hyphens.
+    check("publisher_profiles_slug_check", sql`${t.slug} ~ '^[a-z0-9-]{3,40}$'`),
+  ],
 );
 
 export const publisherFollows = pgTable(
@@ -127,6 +132,10 @@ export const bookRevisions = pgTable(
       .where(sql`${t.publishedAt} is not null`),
     // Moderation queue: oldest pending first.
     index("book_revisions_status_idx").on(t.status, t.createdAt, t.id),
+    // One revision at a time is being edited or reviewed; the approved one stays live meanwhile.
+    uniqueIndex("book_revisions_one_open_key")
+      .on(t.bookId)
+      .where(sql`${t.status} in ('draft', 'pending')`),
     index("book_revisions_search_idx").using("gin", t.searchVector),
     // Typo-tolerant fallback on title and author.
     index("book_revisions_title_trgm_idx").using("gin", t.title.op("gin_trgm_ops")),
@@ -168,7 +177,9 @@ export const contentReports = pgTable(
     bookId: uuid("book_id")
       .notNull()
       .references(() => books.id),
+    /** One of Section 28's reasons; the reporter's own words go in `details`. */
     reason: text("reason").notNull(),
+    details: text("details"),
     status: reportStatus("status").notNull().default("open"),
     resolvedBy: uuid("resolved_by").references(() => users.id, { onDelete: "set null" }),
     resolution: text("resolution"),
@@ -179,5 +190,13 @@ export const contentReports = pgTable(
     index("content_reports_status_idx").on(t.status, t.createdAt, t.id),
     index("content_reports_book_idx").on(t.bookId),
     index("content_reports_reporter_idx").on(t.reporterId),
+    // A reader has at most one open report per book.
+    uniqueIndex("content_reports_open_reporter_key")
+      .on(t.reporterId, t.bookId)
+      .where(sql`${t.status} = 'open'`),
+    check(
+      "content_reports_reason_check",
+      sql`${t.reason} in ('copyright', 'inappropriate', 'incorrect_metadata', 'other')`,
+    ),
   ],
 );
