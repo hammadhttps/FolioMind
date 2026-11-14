@@ -43,6 +43,9 @@ export function cacheKeys(appEnv: AppEnv) {
     usageSummary: (userId: string, periodStart: Date) =>
       cacheKey(appEnv, "usage", userId, periodStart.toISOString()),
     publicCounter: (kind: string, id: string) => cacheKey(appEnv, "count", kind, id),
+    /** Daily read and save dedupe for `analytics_daily` (SET NX, two-day TTL). */
+    analyticsOnce: (kind: "read" | "save", bookId: string, userId: string, date: string) =>
+      cacheKey(appEnv, "analytics", kind, bookId, userId, date),
   };
 }
 

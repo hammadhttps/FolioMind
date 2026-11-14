@@ -1,4 +1,5 @@
 import {
+  BOOK_FILE_ROUTES,
   PLAN_LIMITS,
   USAGE_METRICS,
   type QuestionAllowance,
@@ -12,8 +13,9 @@ import {
   type Database,
   type Executor,
 } from "@foliomind/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, not, notInArray, sql } from "drizzle-orm";
 import { currentEntitlement } from "../entitlements";
+import { isBookSourceDocument } from "../publishing/records";
 
 /*
  * Postgres allowances (blueprint Section 10). A billable operation reserves its
@@ -314,7 +316,14 @@ export async function storageBytesUsed(db: Executor, userId: string): Promise<nu
   const [row] = await db
     .select({ bytes: sql<number>`coalesce(sum(${assets.bytes}), 0)::bigint`.mapWith(Number) })
     .from(assets)
-    .where(and(eq(assets.ownerId, userId), inArray(assets.state, ["pending", "ready"])));
+    .where(
+      and(
+        eq(assets.ownerId, userId),
+        inArray(assets.state, ["pending", "ready"]),
+        // Book sources and covers have the publishing allowance instead (user decision, P9).
+        notInArray(assets.fileRoute, [...BOOK_FILE_ROUTES]),
+      ),
+    );
   return row?.bytes ?? 0;
 }
 
@@ -328,6 +337,7 @@ export async function ownedSourceCount(db: Executor, userId: string): Promise<nu
         eq(documents.ownerId, userId),
         eq(documents.status, "active"),
         isNull(documents.deletedAt),
+        not(isBookSourceDocument(documents.id)),
       ),
     );
   return row?.count ?? 0;

@@ -18,10 +18,11 @@ import {
   type Database,
   type Executor,
 } from "@foliomind/db";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
-import { canReadDocumentVersion, type Actor } from "../access";
+import { and, eq, gte, inArray, not, sql } from "drizzle-orm";
+import { readableSources, type Actor } from "../access";
 import { currentEntitlement } from "../entitlements";
 import { enqueue } from "../outbox";
+import { isBookSourceDocument } from "../publishing/records";
 import { ownedSourceCount, storageBytesUsed } from "../usage";
 
 /*
@@ -57,7 +58,13 @@ async function dailyAdmissions(db: Executor, userId: string, now: Date): Promise
   const [row] = await db
     .select({ count: sql<number>`count(*)::int`.mapWith(Number) })
     .from(documents)
-    .where(and(eq(documents.ownerId, userId), gte(documents.createdAt, since)));
+    .where(
+      and(
+        eq(documents.ownerId, userId),
+        gte(documents.createdAt, since),
+        not(isBookSourceDocument(documents.id)),
+      ),
+    );
   return row?.count ?? 0;
 }
 
@@ -423,10 +430,12 @@ export async function getReadableDocument(
     .innerJoin(assets, eq(assets.id, documentVersions.assetId))
     .where(eq(documents.id, documentId));
   if (!row || row.status !== "active" || row.assetState !== "ready") return null;
-  if (!(await canReadDocumentVersion(db, actor, row.versionId))) return null;
+  const [source] = await readableSources(db, actor, [row.versionId]);
+  if (!source) return null;
   return {
     id: row.id,
-    title: row.title,
+    // A reader of a catalog book sees its listing title, not the publisher's file name.
+    title: source.title,
     ownerId: row.ownerId,
     sourceKind: row.sourceKind,
     isOwner: row.ownerId === actor.id,

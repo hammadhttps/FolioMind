@@ -7,6 +7,7 @@ import type {
 import type { Executor } from "@foliomind/db";
 import { sql, type SQL } from "drizzle-orm";
 import { latestJobs, type LatestJob } from "../processing";
+import { isBookSourceDocument } from "../publishing/records";
 
 /*
  * My Library (blueprint Sections 5, 11 and 24): the user's saved items, which
@@ -23,6 +24,8 @@ export interface LibraryEntry {
   id: string;
   documentId: string | null;
   bookId: string | null;
+  /** For a saved book: the document whose published version the Reader opens. */
+  bookDocumentId: string | null;
   title: string;
   author: string | null;
   kind: LibraryKind;
@@ -158,6 +161,7 @@ export async function listLibrary(
     id: string;
     document_id: string | null;
     book_id: string | null;
+    book_document_id: string | null;
     title: string;
     author: string | null;
     kind: LibraryKind;
@@ -173,6 +177,7 @@ export async function listLibrary(
         li.id,
         li.document_id,
         li.book_id,
+        bv.document_id as book_document_id,
         li.created_at as added_at,
         coalesce(d.title, br.title) as title,
         br.author,
@@ -227,6 +232,7 @@ export async function listLibrary(
       id: row.id,
       documentId: row.document_id,
       bookId: row.book_id,
+      bookDocumentId: row.book_document_id,
       title: row.title,
       author: row.author,
       kind: row.kind,
@@ -262,8 +268,9 @@ export async function dashboardCounts(db: Executor, userId: string): Promise<Das
     projects: number;
   }>(sql`
     select
-      (select count(*)::int from documents
-        where owner_id = ${userId} and status = 'active' and deleted_at is null) as documents,
+      (select count(*)::int from documents d
+        where d.owner_id = ${userId} and d.status = 'active' and d.deleted_at is null
+          and not ${isBookSourceDocument(sql`d.id`)}) as documents,
       (select count(*)::int from library_items where user_id = ${userId} and book_id is not null) as saved_books,
       (select count(*)::int from workspaces where owner_id = ${userId}) as workspaces,
       (select count(*)::int from projects where owner_id = ${userId} and archived_at is null and deleted_at is null) as projects`);

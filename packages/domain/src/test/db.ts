@@ -111,7 +111,7 @@ export async function createBook(
     .insert(publisherProfiles)
     .values({
       userId: publisherUser.id,
-      slug: `press-${randomUUID()}`,
+      slug: `press-${randomUUID().slice(0, 30)}`,
       displayName: "Test Press",
       bio: "Test publisher",
       status: "approved",
