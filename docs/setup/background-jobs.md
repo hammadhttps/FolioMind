@@ -24,7 +24,7 @@ Exports and imports both open Browserless sessions. Browserless's plan must allo
 
 ## Check that it's working
 
-- **Inngest dashboard:** in the **Production** environment, open **Apps**. `foliomind-ingestion` should be listed, with ten functions: Worker A's six and PDF Studio's four (`generate-outline`, `generate-draft`, `regenerate-section`, `render-export`). Inngest also lists each one's failure handler.
+- **Inngest dashboard:** in the **Production** environment, open **Apps**. `foliomind-ingestion` should be listed, with eleven functions: Worker A's seven (including `notify-followers`, which tells a publisher's followers about an approved book) and PDF Studio's four (`generate-outline`, `generate-draft`, `regenerate-section`, `render-export`). Inngest also lists each one's failure handler.
 - **On the site:** upload a small PDF. The card should go from **Processing** through its phases to **Ready**, and the bell should show "Your PDF is ready to read."
 
 ## After changing the functions
