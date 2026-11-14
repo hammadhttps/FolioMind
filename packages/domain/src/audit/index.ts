@@ -10,9 +10,27 @@ import { z } from "zod";
 export const AUDIT_ACTIONS = [
   "user.role_granted",
   "user.signin_refused",
+  "user.suspended",
+  "user.unsuspended",
   "identity.linked",
   "identity.unlinked",
   "identity.link_refused",
+  "publisher.applied",
+  "publisher.approved",
+  "publisher.rejected",
+  "publisher.profile_updated",
+  "book.created",
+  "book.submitted",
+  "book.withdrawn",
+  "book.unpublished",
+  "book.approved",
+  "book.rejected",
+  "book.taken_down",
+  "book.deleted",
+  "report.created",
+  "report.resolved",
+  "report.dismissed",
+  "job.retried",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
