@@ -1,12 +1,19 @@
 import {
+  BOOK_UPLOAD_REFUSALS,
+  bookUploadInputSchema,
   sourceUploadInputSchema,
   UPLOAD_REFUSALS,
+  type BookUploadRefusalCode,
   type UploadRefusalCode,
 } from "@foliomind/contracts";
 import {
+  completeBookSourceUpload,
+  completeCoverUpload,
   completeSourceUpload,
   deliverPending,
   invalidateUserSnapshot,
+  markAssetsDeleted,
+  prepareBookUpload,
   prepareSourceUpload,
   setAvatar,
 } from "@foliomind/domain";
@@ -64,6 +71,23 @@ async function discard(fileKey: string) {
     .catch(() => {});
 }
 
+function refuseBookUpload(code: BookUploadRefusalCode): never {
+  throw new UploadThingError({
+    code: code === "rate_limited" ? "FILE_LIMIT_EXCEEDED" : "BAD_REQUEST",
+    message: BOOK_UPLOAD_REFUSALS[code],
+  });
+}
+
+/** Files a replaced source or cover no longer needs; the daily cleanup retries failures. */
+async function discardReplaced(fileKeys: readonly string[]) {
+  if (fileKeys.length === 0) return;
+  const deleted = await getUtApi()
+    .deleteFiles([...fileKeys])
+    .then((result) => result.success)
+    .catch(() => false);
+  if (deleted) await markAssetsDeleted(getDb(), fileKeys);
+}
+
 export const fileRouter = {
   sourcePdf: f({ pdf: { maxFileSize: "32MB", maxFileCount: 1 } })
     .input(sourceUploadInputSchema)
@@ -104,6 +128,84 @@ export const fileRouter = {
         }).catch(() => {});
       }
       return { documentId: result.documentId, error: null };
+    }),
+
+  /**
+   * A publisher's book PDF (Section 25): same limits as `sourcePdf`, but for an
+   * approved publisher who owns the book draft, with the separate publishing
+   * allowance (user decision, 2026-11-09). It joins the draft revision only.
+   */
+  bookSourcePdf: f({ pdf: { maxFileSize: "32MB", maxFileCount: 1 } })
+    .input(bookUploadInputSchema)
+    .middleware(async ({ files, input }) => {
+      const user = await uploader();
+      const admission = await prepareBookUpload(getDb(), {
+        userId: user.id,
+        bookId: input.bookId,
+        kind: "source",
+        files,
+      });
+      if (!admission.ok) refuseBookUpload(admission.code);
+      return {
+        userId: user.id,
+        bookId: input.bookId,
+        title: input.title ?? null,
+        [UTFiles]: files.map((file) => ({ ...file, customId: admission.customId })),
+      };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      const result = await completeBookSourceUpload(getDb(), {
+        userId: metadata.userId,
+        bookId: metadata.bookId,
+        title: metadata.title ?? undefined,
+        file,
+        embedding: { model: env.JINA_EMBEDDING_MODEL, dimension: env.JINA_EMBEDDING_DIMENSION },
+        acl: SOURCE_ACL,
+      });
+      if (!result.ok) {
+        console.error(
+          JSON.stringify({ event: "book_upload.refused_on_completion", code: result.code }),
+        );
+        await discard(file.key);
+        return { revisionId: null, error: result.code };
+      }
+      await deliverPending(getDb(), (events) => getInngest().send(events), {
+        keys: [result.eventKey],
+      }).catch(() => {});
+      await discardReplaced(result.fileKeys);
+      return { revisionId: result.revisionId, error: null };
+    }),
+
+  /** A book cover (Section 25): public, 4 MB, attached to the draft revision until approved. */
+  coverImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+    .input(bookUploadInputSchema)
+    .middleware(async ({ files, input }) => {
+      const user = await uploader();
+      const admission = await prepareBookUpload(getDb(), {
+        userId: user.id,
+        bookId: input.bookId,
+        kind: "cover",
+        files,
+      });
+      if (!admission.ok) refuseBookUpload(admission.code);
+      return {
+        userId: user.id,
+        bookId: input.bookId,
+        [UTFiles]: files.map((file) => ({ ...file, customId: admission.customId })),
+      };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      const result = await completeCoverUpload(getDb(), {
+        userId: metadata.userId,
+        bookId: metadata.bookId,
+        file,
+      });
+      if (!result.ok) {
+        await discard(file.key);
+        return { revisionId: null, error: result.code };
+      }
+      await discardReplaced(result.fileKeys);
+      return { revisionId: result.revisionId, error: null };
     }),
 
   avatarImage: f({ image: { maxFileSize: "2MB", maxFileCount: 1 } })
