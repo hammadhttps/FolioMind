@@ -1,5 +1,20 @@
 import { expect, test } from "@playwright/test";
+import {
+  closeE2eDatabase,
+  createTestUser,
+  deleteTestUsers,
+  searchMarker,
+  seedPublishedBook,
+  seedPublisher,
+} from "./auth";
 import { isProductionServer } from "./helpers";
+
+const created: string[] = [];
+
+test.afterAll(async () => {
+  await deleteTestUsers(created);
+  await closeE2eDatabase();
+});
 
 test("the skip link is the first focusable element", async ({ page }) => {
   await page.goto("/");
@@ -68,12 +83,32 @@ test("the sign-in page shows callback errors from the URL", async ({ page }) => 
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Sign-in was cancelled.");
 });
 
-test("Explore keeps category filters in the URL", async ({ page }) => {
-  await page.goto("/library");
+test("Explore keeps category filters in the URL", async ({ page }, testInfo) => {
+  // Phones get the same filters in a sheet with Apply (publishing.spec.ts).
+  test.skip(testInfo.project.name !== "desktop", "Category pills show at 761px and wider.");
+  // Pills come from the categories of published books (Phase 9 facets), so seed one.
+  const marker = searchMarker();
+  const owner = await createTestUser();
+  created.push(owner.id);
+  const publisherId = await seedPublisher(owner.id, {
+    slug: `pills-${marker}`,
+    name: `Pills ${marker}`,
+  });
+  await seedPublishedBook(owner.id, publisherId, { title: `Grids ${marker}`, category: "design" });
+
+  await page.goto(`/library?q=${marker}`);
   const design = page.getByRole("button", { name: "Design", exact: true });
   await design.click();
   await expect(page).toHaveURL(/category=design/);
   await expect(design).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { level: 3, name: `Grids ${marker}` })).toBeVisible();
+
+  // A search nothing matches keeps the category and offers to clear both.
+  await page.goto("/library?category=design&q=qqxxzzvvww");
+  await expect(page.getByRole("button", { name: "Design", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await expect(page.getByText("Try a broader search or clear your filters.")).toBeVisible();
 
   await page.getByRole("button", { name: "Clear filters" }).first().click();
@@ -87,10 +122,10 @@ test("Explore keeps category filters in the URL", async ({ page }) => {
 test.describe("workspace shell (development preview)", () => {
   test.skip(isProductionServer, "Uses the development-only screen previews.");
 
-  test("Ctrl+K opens page navigation", async ({ page, isMobile }) => {
+  test("Ctrl+K opens search with page navigation", async ({ page, isMobile }) => {
     test.skip(isMobile, "Keyboard shortcut is a desktop affordance.");
     await page.goto("/dev/ui/screens/dashboard", { waitUntil: "networkidle" });
-    const input = page.getByPlaceholder("Go to a page…");
+    const input = page.getByPlaceholder("Search books, your library or projects…");
     // The page is server-rendered: retry until hydration has attached the shortcut.
     await expect(async () => {
       await page.keyboard.press("Control+k");

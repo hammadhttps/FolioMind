@@ -146,6 +146,16 @@ export async function deleteTestUsers(ids: readonly string[]) {
         .catch(() => {});
     }
     await db().transaction(async (tx) => {
+      // Publishing (Phase 9): reports, saves and follows of their books, then the books.
+      const theirBooks = sql`(select b.id from books b join publisher_profiles p on p.id = b.publisher_id where p.user_id = ${id})`;
+      await tx.execute(
+        sql`delete from content_reports where reporter_id = ${id} or book_id in ${theirBooks}`,
+      );
+      await tx.execute(sql`delete from library_items where book_id in ${theirBooks}`);
+      await tx.execute(sql`delete from analytics_daily where book_id in ${theirBooks}`);
+      await tx.execute(sql`delete from books where id in ${theirBooks}`);
+      await tx.execute(sql`delete from publisher_follows where user_id = ${id}`);
+      await tx.execute(sql`delete from publisher_profiles where user_id = ${id}`);
       await tx.execute(sql`delete from projects where owner_id = ${id}`);
       await tx.execute(sql`delete from conversations where user_id = ${id}`);
       await tx.execute(sql`delete from workspaces where owner_id = ${id}`);
@@ -444,3 +454,123 @@ export const hasGenerationWorker = () =>
   hasConnectedApp(
     process.env.E2E_FUNCTIONS_ON_ROUTE ? "foliomind-ingestion" : "foliomind-generation",
   );
+
+/* --- Publishing (Phase 9) -------------------------------------------------- */
+
+export async function setRole(userId: string, role: "reader" | "publisher" | "admin") {
+  await db().update(users).set({ role }).where(eq(users.id, userId));
+}
+
+/** An approved publisher profile for a user, with the publisher role. */
+export async function seedPublisher(
+  userId: string,
+  input: { slug: string; name: string },
+): Promise<string> {
+  await setRole(userId, "publisher");
+  const [row] = await db().execute<{ id: string }>(sql`
+    insert into publisher_profiles (user_id, slug, display_name, bio, status)
+    values (${userId}, ${input.slug}, ${input.name},
+      ${"A seeded test publisher for end-to-end tests of the FolioMind catalog and moderation."},
+      'approved')
+    returning id`);
+  return row!.id;
+}
+
+/** A book source document with a ready version, as `bookSourcePdf` and ingestion would leave it. */
+async function seedBookSource(userId: string, title: string): Promise<string> {
+  const [asset] = await db().execute<{ id: string }>(sql`
+    insert into assets (owner_id, file_key, custom_id, file_route, acl, purpose, bytes, mime_type, state)
+    values (${userId}, ${`e2e-missing-${randomUUID()}`}, ${`e2e-${randomUUID()}`}, 'bookSourcePdf',
+      'public', 'source', 2000, 'application/pdf', 'ready')
+    returning id`);
+  const [document] = await db().execute<{ id: string }>(sql`
+    insert into documents (owner_id, title, source_kind) values (${userId}, ${`${title}.pdf`}, 'upload')
+    returning id`);
+  const [version] = await db().execute<{ id: string }>(sql`
+    insert into document_versions (document_id, version_no, asset_id, status, page_count,
+      index_version, embedding_model, embedding_dimension)
+    values (${document!.id}, 1, ${asset!.id}, 'ready', 12, 'e2e', 'e2e', 1024)
+    returning id`);
+  await db().execute(
+    sql`update documents set current_version_id = ${version!.id} where id = ${document!.id}`,
+  );
+  return version!.id;
+}
+
+/** A draft book whose PDF is processed: what the publisher sees after uploading. */
+export async function seedBookDraft(
+  userId: string,
+  publisherId: string,
+  title: string,
+): Promise<{ bookId: string; revisionId: string }> {
+  const versionId = await seedBookSource(userId, title);
+  const [book] = await db().execute<{ id: string }>(
+    sql`insert into books (publisher_id, status) values (${publisherId}, 'draft') returning id`,
+  );
+  const [revision] = await db().execute<{ id: string }>(sql`
+    insert into book_revisions (book_id, revision_no, document_version_id, title, description,
+      author, language, license_statement, status)
+    values (${book!.id}, 1, ${versionId}, ${title}, '', '', 'en', '', 'draft')
+    returning id`);
+  return { bookId: book!.id, revisionId: revision!.id };
+}
+
+/** A published book with an approved revision in the given category. */
+export async function seedPublishedBook(
+  userId: string,
+  publisherId: string,
+  input: { title: string; author?: string; category?: string; publishedAt?: Date },
+): Promise<{ bookId: string; documentId: string }> {
+  const versionId = await seedBookSource(userId, input.title);
+  const [book] = await db().execute<{ id: string }>(
+    sql`insert into books (publisher_id, status) values (${publisherId}, 'published') returning id`,
+  );
+  const [revision] = await db().execute<{ id: string }>(sql`
+    insert into book_revisions (book_id, revision_no, document_version_id, title, description,
+      author, language, license_statement, status, published_at)
+    values (${book!.id}, 1, ${versionId}, ${input.title},
+      ${"A seeded book used by the end-to-end tests. It describes nothing real and is removed afterwards."},
+      ${input.author ?? "E2E Author"}, 'en', ${"Seeded for tests; no rights are granted."},
+      'approved', ${(input.publishedAt ?? new Date()).toISOString()}::timestamptz)
+    returning id`);
+  await db().execute(sql`
+    insert into book_revision_categories (book_revision_id, category_id)
+    select ${revision!.id}::uuid, id from categories where slug = ${input.category ?? "research"}`);
+  await db().execute(
+    sql`update books set published_revision_id = ${revision!.id} where id = ${book!.id}`,
+  );
+  const [document] = await db().execute<{ document_id: string }>(
+    sql`select document_id from document_versions where id = ${versionId}`,
+  );
+  return { bookId: book!.id, documentId: document!.document_id };
+}
+
+export async function bookStatus(bookId: string): Promise<string | undefined> {
+  const [row] = await db().execute<{ status: string }>(
+    sql`select status from books where id = ${bookId}`,
+  );
+  return row?.status;
+}
+
+export async function auditActionsFor(targetId: string): Promise<string[]> {
+  const rows = await db().execute<{ action: string }>(
+    sql`select action from audit_logs where target_id = ${targetId} order by created_at`,
+  );
+  return rows.map((row) => row.action);
+}
+
+export async function publisherProfileId(slug: string): Promise<string> {
+  const [row] = await db().execute<{ id: string }>(
+    sql`select id from publisher_profiles where slug = ${slug}`,
+  );
+  if (!row) throw new Error(`no publisher profile ${slug}`);
+  return row.id;
+}
+
+/** A random lowercase marker that full-text search keeps as one word (no digits). */
+export function searchMarker(prefix = "zq"): string {
+  return `${prefix}${randomUUID()
+    .replace(/-/g, "")
+    .slice(0, 8)
+    .replace(/[0-9]/g, (digit) => "ghijklmnop"[Number(digit)]!)}`;
+}
