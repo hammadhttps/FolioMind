@@ -160,22 +160,45 @@ export const geminiShape = {
   GEMINI_FAST_MODEL: z.string().min(1).default("gemini-3.5-flash-lite"),
 };
 
-export const stripeSecretShape = {
-  STRIPE_SECRET_KEY: z
+/**
+ * Stripe values pasted into a dashboard often pick up surrounding spaces, a
+ * newline or quotes. They're removed before validation: a stray character in
+ * the price ID makes Stripe's firewall refuse `/v1/prices/<id>` outright
+ * (`wsp_400_blocked_path_traversal_request`).
+ */
+const stripeValue = (pattern: RegExp, label: string) =>
+  z
     .string()
-    .regex(/^(sk|rk)_(test|live)_/, "a Stripe secret or restricted key")
-    .optional(),
+    .transform((value) =>
+      value
+        .trim()
+        .replace(/^(['"])(.*)\1$/, "$2")
+        .trim(),
+    )
+    .pipe(z.string().regex(pattern, label));
+
+export const stripeSecretShape = {
+  STRIPE_SECRET_KEY: stripeValue(
+    /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/,
+    "a Stripe secret or restricted key",
+  ).optional(),
 };
 
 /** The Pro price, allowlisted on the server (Section 10). Worker A needs it to map subscriptions. */
 export const stripePriceShape = {
-  STRIPE_PRO_MONTHLY_PRICE_ID: z.string().startsWith("price_").optional(),
+  STRIPE_PRO_MONTHLY_PRICE_ID: stripeValue(
+    /^price_[A-Za-z0-9]+$/,
+    "a Stripe price ID (price_…)",
+  ).optional(),
 };
 
 export const stripeWebShape = {
   ...stripeSecretShape,
   ...stripePriceShape,
-  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+  STRIPE_WEBHOOK_SECRET: stripeValue(
+    /^whsec_[A-Za-z0-9]+$/,
+    "a Stripe webhook signing secret",
+  ).optional(),
 };
 
 /** Variables each deployable needs once APP_ENV is staging or production. */

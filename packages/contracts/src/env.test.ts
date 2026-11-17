@@ -6,9 +6,33 @@ import {
   productionProblems,
   requireVariables,
   resolveAppEnv,
+  stripeWebShape,
   upstashShape,
 } from "./env";
 import { ServiceNotConfiguredError } from "./errors";
+
+describe("Stripe variables", () => {
+  const stripe = z.object(stripeWebShape);
+
+  it("drops the spaces, newline or quotes a pasted value picks up", () => {
+    const parsed = stripe.parse({
+      STRIPE_SECRET_KEY: ' "sk_test_51Abc123" ',
+      STRIPE_PRO_MONTHLY_PRICE_ID: "price_1Uch70Rz\n",
+      STRIPE_WEBHOOK_SECRET: "'whsec_abc123' ",
+    });
+    expect(parsed).toEqual({
+      STRIPE_SECRET_KEY: "sk_test_51Abc123",
+      STRIPE_PRO_MONTHLY_PRICE_ID: "price_1Uch70Rz",
+      STRIPE_WEBHOOK_SECRET: "whsec_abc123",
+    });
+  });
+
+  it("refuses a price ID with anything but letters and digits after price_", () => {
+    for (const value of ["price_1Uch/../x", "price_1 Uch", "STRIPE_PRO_MONTHLY_PRICE_ID=price_1"]) {
+      expect(stripe.safeParse({ STRIPE_PRO_MONTHLY_PRICE_ID: value }).success).toBe(false);
+    }
+  });
+});
 
 const schema = z.object({
   ...upstashShape,
