@@ -45,7 +45,9 @@ async function seed(dev: boolean): Promise<void> {
   if (dev) assertDevSeedAllowed(url, process.env);
   const { db, close } = createDb({ url, role: "script" });
   try {
-    const required = await seedRequired(db);
+    const required = await seedRequired(db, {
+      proPriceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID?.trim() || undefined,
+    });
     console.log(`Plans upserted: ${required.plans}; new categories: ${required.categories}.`);
     if (dev) {
       const sample = await seedDev(db);
