@@ -3,6 +3,7 @@ import { proPriceSchema, type ProPrice } from "@foliomind/contracts";
 import { cached, cacheKey, createStripeGateway, type BillingGateway } from "@foliomind/domain";
 import { appEnv, env } from "@/env";
 import { getRequestRedis, getStripe } from "@/lib/clients";
+import { errorFields, logEvent } from "@/lib/log";
 
 /*
  * Billing configuration for the web app (blueprint Section 10). Stripe stays
@@ -78,9 +79,7 @@ export async function getProPrice(): Promise<ProPrice | null> {
       },
     });
   } catch (error) {
-    console.error(
-      JSON.stringify({ event: "billing.price_unavailable", name: (error as Error)?.name }),
-    );
+    logEvent("error", "billing.price_unavailable", errorFields(error));
     return null;
   }
 }

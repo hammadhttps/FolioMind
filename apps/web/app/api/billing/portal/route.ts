@@ -6,7 +6,7 @@ import { withRateLimit } from "@/lib/rate-limit";
 import { apiError, rejectCrossOrigin } from "@/lib/request-guard";
 import { getFreshUser } from "@/lib/session";
 
-import { logEvent } from "@/lib/log";
+import { errorFields, logEvent } from "@/lib/log";
 /**
  * `POST /api/billing/portal` (Section 10 step 5): a Customer Portal session
  * for the signed-in user's own stored customer, returning to Billing. A
@@ -30,7 +30,7 @@ export const POST = withRateLimit("billingSession", async (request: Request) => 
     if (!result.ok) return apiError(404, result.code, BILLING_REFUSALS.no_customer);
     return Response.json({ url: result.url }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    logEvent("error", "billing.portal_failed", { name: (error as Error)?.name });
+    logEvent("error", "billing.portal_failed", errorFields(error));
     return apiError(502, "provider_unavailable", BILLING_REFUSALS.provider_unavailable);
   }
 });

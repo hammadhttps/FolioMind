@@ -11,7 +11,7 @@ import { withRateLimit } from "@/lib/rate-limit";
 import { apiError, rejectCrossOrigin } from "@/lib/request-guard";
 import { getFreshUser } from "@/lib/session";
 
-import { logEvent } from "@/lib/log";
+import { errorFields, logEvent } from "@/lib/log";
 /**
  * `POST /api/billing/checkout` (Section 10 "Checkout flow" steps 1–4). The
  * browser names a plan; the price comes from the server's allowlist. Returns
@@ -43,7 +43,7 @@ export const POST = withRateLimit("billingSession", async (request: Request) => 
     }
     return Response.json({ url: result.url }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    logEvent("error", "billing.checkout_failed", { name: (error as Error)?.name });
+    logEvent("error", "billing.checkout_failed", errorFields(error));
     return apiError(502, "provider_unavailable", BILLING_REFUSALS.provider_unavailable);
   }
 });
