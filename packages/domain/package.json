@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./test/billing": "./src/test/billing.ts",
     "./test/db": "./src/test/db.ts",
     "./test/env": "./src/test/env.ts",
     "./test/global-setup": "./src/test/global-setup.ts"
