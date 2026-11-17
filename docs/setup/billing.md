@@ -37,6 +37,8 @@ FolioMind sells one plan, **FolioMind Pro**, as a monthly subscription through S
 
    **Set these before deploying the billing code.** Production and preview builds stop when one is missing.
 
+   The Vercel Stripe integration adds the account's API keys, but not a webhook endpoint or its signing secret: each endpoint has its own, and `pnpm stripe:setup` creates it. Paste only the `whsec_…` value. Vercel deploys every push to `main` by itself, so the CI deploy job showing "skipped" doesn't block anything; a failed Vercel build does.
+
 5. **Inngest.** After the deploy, Worker A lists two more functions, `sync-stripe` and `reconcile-billing`. If the integration doesn't sync on its own, run `curl -X PUT https://folio-mind-two.vercel.app/api/inngest`.
 
 ## Testing locally
