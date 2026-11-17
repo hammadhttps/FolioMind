@@ -24,6 +24,7 @@ import { getCacheKeys, getDb, getInngest, getRequestRedis, getUtApi } from "@/li
 import { checkRateLimitFor } from "@/lib/rate-limit";
 import { getCurrentUser } from "@/lib/session";
 
+import { logEvent } from "@/lib/log";
 /*
  * The one UploadThing file router (blueprint Section 25), served at
  * /api/uploadthing. Middleware admits an upload and records its intent;
@@ -110,7 +111,7 @@ export const fileRouter = {
         acl: SOURCE_ACL,
       });
       if (!result.ok) {
-        console.error(JSON.stringify({ event: "upload.refused_on_completion", code: result.code }));
+        logEvent("error", "upload.refused_on_completion", { code: result.code });
         await discard(file.key);
         const code: UploadRefusalCode =
           result.code === "file_limit" ||
@@ -163,9 +164,7 @@ export const fileRouter = {
         acl: SOURCE_ACL,
       });
       if (!result.ok) {
-        console.error(
-          JSON.stringify({ event: "book_upload.refused_on_completion", code: result.code }),
-        );
+        logEvent("error", "book_upload.refused_on_completion", { code: result.code });
         await discard(file.key);
         return { revisionId: null, error: result.code };
       }

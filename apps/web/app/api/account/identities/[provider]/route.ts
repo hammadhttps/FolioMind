@@ -7,6 +7,7 @@ import { withRateLimit } from "@/lib/rate-limit";
 import { apiError, rejectCrossOrigin } from "@/lib/request-guard";
 import { getFreshUser } from "@/lib/session";
 
+import { logEvent } from "@/lib/log";
 type Context = { params: Promise<{ provider: string }> };
 
 const STATUS = {
@@ -42,7 +43,7 @@ const disconnect = withRateLimit(
       const status = STATUS[outcome.code as keyof typeof STATUS] ?? 409;
       return apiError(status, outcome.code, IDENTITY_MESSAGES[outcome.code]);
     } catch {
-      console.error(JSON.stringify({ event: "identity.unlink_failed" }));
+      logEvent("error", "identity.unlink_failed");
       return apiError(502, "link_failed", "We couldn't disconnect that method. Please try again.");
     }
   },

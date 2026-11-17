@@ -10,6 +10,7 @@ import { REFUSE_SESSION_HEADER } from "./auth/session-cookies";
 import type { SignInErrorCode } from "./auth/sign-in-errors";
 import { getCacheKeys, getDb, getRequestRedis } from "./clients";
 
+import { logEvent } from "@/lib/log";
 /**
  * Auth0 SDK client (blueprint Sections 3 and 22). Configuration is passed from
  * the validated environment. In development it is `null` until the AUTH0_*
@@ -46,7 +47,7 @@ function createAuth0(): Auth0Client | null {
       try {
         outcome = await signIn(getDb(), sessionClaims(session));
       } catch (cause) {
-        console.error(JSON.stringify({ event: "auth.signin_failed", error: errorName(cause) }));
+        logEvent("error", "auth.signin_failed", { error: errorName(cause) });
         return refuseSession("/login?auth_error=failed");
       }
 
@@ -110,7 +111,7 @@ async function deleteOrphan(sub: string): Promise<void> {
   try {
     await auth0IdentityAdmin.deleteUser(sub);
   } catch (cause) {
-    console.error(JSON.stringify({ event: "auth.orphan_delete_failed", error: errorName(cause) }));
+    logEvent("error", "auth.orphan_delete_failed", { error: errorName(cause) });
   }
 }
 
