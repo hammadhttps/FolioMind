@@ -1,5 +1,10 @@
 import {
+  anonymizeDeletedAccounts,
   createNotification,
+  deletionsToFinish,
+  markIdentityDeleted,
+  markSubscriptionCancelled,
+  purgeOldWebhookEvents,
   deliverPending,
   expireAbandoned,
   expireUploadIntents,
@@ -225,6 +230,33 @@ export function createCleanupMaintenanceFunction(inngest: Inngest, deps: WorkerA
         "lift-expired-suspensions",
         async () => (await liftExpiredSuspensions(db, { limit: 500 })).length,
       );
+      // Section 6: a deleted account never keeps a renewing subscription or an identity.
+      const finishedDeletions = await step.run("finish-account-deletions", async () => {
+        let cancelled = 0;
+        let identities = 0;
+        for (const pending of await deletionsToFinish(db, { limit: 20 })) {
+          if (deps.billing) {
+            for (const subscriptionId of pending.subscriptionIds) {
+              await deps.billing.gateway.cancelSubscription(subscriptionId);
+              await markSubscriptionCancelled(db, subscriptionId);
+              cancelled += 1;
+            }
+          }
+          if (pending.auth0Sub && deps.identityAdmin) {
+            await deps.identityAdmin.deleteUser(pending.auth0Sub).catch((error: unknown) => {
+              // Already gone in Auth0 counts as done.
+              if ((error as { statusCode?: number })?.statusCode !== 404) throw error;
+            });
+            await markIdentityDeleted(db, pending.userId);
+            identities += 1;
+          }
+        }
+        return { cancelled, identities };
+      });
+      const anonymizedAccounts = await step.run("anonymize-deleted-accounts", () =>
+        anonymizeDeletedAccounts(db),
+      );
+      const webhookEvents = await step.run("webhook-retention", () => purgeOldWebhookEvents(db));
       const summary = {
         intents,
         reservations,
@@ -236,6 +268,9 @@ export function createCleanupMaintenanceFunction(inngest: Inngest, deps: WorkerA
         notifications,
         oldIntents,
         liftedSuspensions,
+        finishedDeletions,
+        anonymizedAccounts,
+        webhookEvents,
       };
       deps.logger.info(summary, "maintenance finished");
       return summary;

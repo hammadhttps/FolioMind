@@ -5,6 +5,10 @@ import {
   createNotifyFollowersFunction,
   createSendNotificationFunction,
 } from "./functions/ingestion/control";
+import {
+  createReconcileBillingFunction,
+  createSyncStripeFunction,
+} from "./functions/ingestion/billing";
 import { createImportUrlFunction } from "./functions/ingestion/import-url";
 import { createIngestDocumentFunction } from "./functions/ingestion/ingest-document";
 import type { WorkerADeps } from "./functions/ingestion/shared";
@@ -27,6 +31,8 @@ export function createWorkerAFunctions(inngest: Inngest, deps: WorkerADeps) {
     createNotifyFollowersFunction(inngest, deps),
     createDispatchOutboxFunction(inngest, deps),
     createCleanupMaintenanceFunction(inngest, deps),
+    createSyncStripeFunction(inngest, deps),
+    createReconcileBillingFunction(inngest, deps),
   ];
 }
 

@@ -1,4 +1,5 @@
 import {
+  billingStripeWebhookRecordedData,
   catalogBookPublishedData,
   documentUrlImportRequestedData,
   documentVersionCancelledData,
@@ -57,4 +58,8 @@ export const projectGenerationCancelled = eventType(EVENT_NAMES.projectGeneratio
 
 export const catalogBookPublished = eventType(EVENT_NAMES.catalogBookPublished, {
   schema: catalogBookPublishedData,
+});
+
+export const billingStripeWebhookRecorded = eventType(EVENT_NAMES.billingStripeWebhookRecorded, {
+  schema: billingStripeWebhookRecordedData,
 });

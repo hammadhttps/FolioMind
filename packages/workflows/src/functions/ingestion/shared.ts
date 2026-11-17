@@ -1,7 +1,14 @@
 import { ProviderError } from "@foliomind/contracts";
 import type { JinaClient } from "@foliomind/ai/jina";
 import type { Database } from "@foliomind/db";
-import { JobFailure, JobStopped } from "@foliomind/domain";
+import {
+  JobFailure,
+  JobStopped,
+  type BillingGateway,
+  type CacheKeys,
+  type IdentityProviderAdmin,
+} from "@foliomind/domain";
+import type { Redis } from "@upstash/redis";
 import type { BrowserlessConfig } from "@foliomind/pdf";
 import { NonRetriableError, RetryAfterError } from "inngest";
 import type { Extractor } from "../../ingestion/extraction";
@@ -56,6 +63,14 @@ export interface WorkerADeps {
   ownHosts: readonly string[];
   logger: WorkerLogger;
   tempDir?: string;
+  /** Stripe and the allowlisted Pro price; null where billing isn't configured. */
+  billing: { gateway: BillingGateway; proPriceId: string } | null;
+  /** Cron schedule of `reconcile-billing` (`BILLING_RECONCILE_CRON`; hourly). */
+  billingCron: string;
+  /** Deletes Auth0 identities of deleted accounts; null without Management API credentials. */
+  identityAdmin: Pick<IdentityProviderAdmin, "deleteUser"> | null;
+  /** For dropping a user's cached snapshot when their plan changes. */
+  cache: { redis: Redis | null; keys: CacheKeys } | null;
 }
 
 /**
