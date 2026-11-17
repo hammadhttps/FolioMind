@@ -138,7 +138,7 @@ export function PublisherProfileForm({
         </Field>
         <p className="text-sm text-muted-foreground md:col-span-2">
           Your page shows the picture you upload in{" "}
-          <Link href="/dashboard/settings" className="text-link underline-offset-4 hover:underline">
+          <Link href="/dashboard/settings" className="text-link underline underline-offset-4">
             Settings
           </Link>
           ; a sign-in provider&apos;s photo is never shown.

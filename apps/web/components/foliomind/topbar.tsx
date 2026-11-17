@@ -54,13 +54,17 @@ export function Topbar({ user, onOpenSearch }: { user: SessionUser; onOpenSearch
             <Button
               variant="outline"
               onClick={onOpenSearch}
-              aria-label="Search FolioMind"
               aria-keyshortcuts="Meta+K Control+K"
               className="size-9.5 justify-start px-0 text-muted-foreground max-sm:justify-center sm:w-48 sm:px-3 lg:w-60"
             >
               <Search className="size-4" aria-hidden="true" />
-              <span className="max-sm:hidden">Search</span>
-              <Kbd className="ml-auto max-sm:hidden">⌘K</Kbd>
+              {/* The name is the visible word plus context (WCAG 2.5.3); phones show only the icon. */}
+              <span className="max-sm:sr-only">
+                Search<span className="sr-only"> FolioMind</span>
+              </span>
+              <Kbd className="ml-auto max-sm:hidden" aria-hidden="true">
+                ⌘K
+              </Kbd>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Search (Ctrl+K or ⌘K)</TooltipContent>
@@ -152,10 +156,11 @@ function UserMenu({ user }: { user: SessionUser }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Account menu"
           className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/70"
         >
+          {/* Named by its content, so the name contains the initials sighted users see (WCAG 2.5.3). */}
           <UserAvatar user={user} />
+          <span className="sr-only">Account menu</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">

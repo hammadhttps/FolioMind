@@ -51,7 +51,7 @@ async function LoginForm({ searchParams }: { searchParams: PageProps<"/login">["
 
 function PanelSkeleton() {
   return (
-    <div className="grid gap-3" aria-busy="true" aria-label="Loading sign-in options">
+    <div className="grid gap-3" role="status" aria-busy="true" aria-label="Loading sign-in options">
       <Skeleton className="h-11 w-full" />
       <Skeleton className="h-11 w-full" />
       <Skeleton className="mt-4 h-11 w-full" />
