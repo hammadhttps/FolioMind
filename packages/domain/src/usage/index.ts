@@ -75,10 +75,25 @@ export async function reserve(db: Database, input: ReserveInput): Promise<Reserv
 
   try {
     return await db.transaction(async (tx) => {
-      // Buckets are created lazily, once per user, metric and period.
+      // Buckets are created lazily, once per user, metric and period. A period
+      // that starts inside another one (an upgrade mid-month) begins with what
+      // was already consumed there, so switching plans never resets a limit
+      // (Section 10). Renewals start where the last period ended: no overlap.
+      const carried = sql`(
+        select coalesce(sum(previous.consumed), 0) from usage_buckets previous
+        where previous.user_id = ${input.userId} and previous.metric = ${input.metric}
+          and previous.period_start < ${periodStart.toISOString()}::timestamptz
+          and previous.period_end > ${periodStart.toISOString()}::timestamptz)`;
       await tx
         .insert(usageBuckets)
-        .values({ userId: input.userId, metric: input.metric, periodStart, periodEnd, limit })
+        .values({
+          userId: input.userId,
+          metric: input.metric,
+          periodStart,
+          periodEnd,
+          limit,
+          consumed: carried,
+        })
         .onConflictDoNothing({
           target: [usageBuckets.userId, usageBuckets.metric, usageBuckets.periodStart],
         });
@@ -362,5 +377,57 @@ export async function uploadAllowance(db: Executor, userId: string): Promise<Upl
     documentLimit: limits.ownedSourcePdfs,
     storageBytes,
     storageLimitBytes: limits.storageBytes,
+  };
+}
+
+export interface UsageOverview {
+  planCode: "free" | "pro";
+  period: { start: Date; end: Date };
+  metrics: { metric: UsageMetric; used: number; limit: number }[];
+  documents: { used: number; limit: number };
+  storage: { usedBytes: number; limitBytes: number };
+}
+
+/**
+ * Billing and Usage's allowances (Section 5 row 14): each monthly metric for
+ * the current entitlement period, with what a not-yet-created bucket would
+ * carry over from an overlapping one, plus the file and storage gauges.
+ */
+export async function usageOverview(
+  db: Executor,
+  userId: string,
+  now: Date = new Date(),
+): Promise<UsageOverview> {
+  const { planCode, limits, period } = await currentEntitlement(db, userId, now);
+  const start = period.start.toISOString();
+  const rows = await db.execute<{ metric: string; used: string | number }>(sql`
+    select m.metric,
+      coalesce(
+        (select b.reserved + b.consumed from usage_buckets b
+          where b.user_id = ${userId} and b.metric = m.metric and b.period_start = ${start}::timestamptz),
+        (select coalesce(sum(p.consumed), 0) from usage_buckets p
+          where p.user_id = ${userId} and p.metric = m.metric
+            and p.period_start < ${start}::timestamptz and p.period_end > ${start}::timestamptz)
+      ) as used
+    from unnest(${sql.raw(
+      `array[${Object.keys(USAGE_METRICS)
+        .map((metric) => `'${metric}'`)
+        .join(", ")}]`,
+    )}::text[]) as m(metric)`);
+  const used = new Map(rows.map((row) => [row.metric, Number(row.used ?? 0)]));
+  const [documents, storageBytes] = await Promise.all([
+    ownedSourceCount(db, userId),
+    storageBytesUsed(db, userId),
+  ]);
+  return {
+    planCode,
+    period,
+    metrics: (Object.keys(USAGE_METRICS) as UsageMetric[]).map((metric) => ({
+      metric,
+      used: used.get(metric) ?? 0,
+      limit: limits[USAGE_METRICS[metric]],
+    })),
+    documents: { used: documents, limit: limits.ownedSourcePdfs },
+    storage: { usedBytes: storageBytes, limitBytes: limits.storageBytes },
   };
 }

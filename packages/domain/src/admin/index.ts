@@ -14,6 +14,7 @@ import {
 import { and, eq, sql } from "drizzle-orm";
 import type { Actor } from "../access";
 import { writeAudit } from "../audit";
+import { effectivePlanSql } from "../entitlements";
 import { canRetryJob } from "../jobs";
 import { keysetPage, keysetPlan, likePattern, type KeysetPage } from "../keyset";
 import { retryDocument } from "../processing";
@@ -275,11 +276,8 @@ export interface AdminUserRow {
   createdAt: Date;
 }
 
-/**
- * The effective plan as SQL, matching `effectivePlanCode` (Free until Phase 10
- * synchronizes Stripe; replace both together).
- */
-const PLAN_SQL = sql`'free'`;
+/** The effective plan as SQL, the same rule as `effectivePlanCode`. */
+const PLAN_SQL = effectivePlanSql(sql`u.id`);
 
 /** Admin users (Section 24): email or name, role, status and plan, newest first. */
 export async function listAdminUsers(
