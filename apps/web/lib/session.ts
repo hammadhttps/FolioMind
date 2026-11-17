@@ -147,6 +147,7 @@ export function toSessionUser(user: UserSnapshot): SessionUser {
     isAdmin: isAdmin(user),
     emailVerified: user.emailVerified,
     theme: user.theme,
+    planCode: user.planCode,
   };
 }
 

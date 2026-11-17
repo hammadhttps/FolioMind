@@ -23,6 +23,7 @@ export const SAMPLE_USER: SessionUser = {
   isAdmin: true,
   emailVerified: true,
   theme: "light",
+  planCode: "free",
 };
 
 export const SAMPLE_SIGN_IN_METHODS: SignInMethodView[] = [

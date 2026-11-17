@@ -8,4 +8,6 @@ export interface SessionUser {
   isAdmin: boolean;
   emailVerified: boolean;
   theme: "light" | "dark" | "system";
+  /** The effective plan (Section 10), from the 60-second snapshot. */
+  planCode: "free" | "pro";
 }

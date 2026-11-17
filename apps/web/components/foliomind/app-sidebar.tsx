@@ -76,7 +76,7 @@ export function AppSidebar({ user }: { user: SessionUser }) {
 
       <SidebarFooter className="gap-3 px-[18px] pb-5">
         <SidebarSeparator className="mx-0" />
-        <ProCard onNavigate={closeDrawer} />
+        <ProCard pro={user.planCode === "pro"} onNavigate={closeDrawer} />
         <SidebarMenu>
           <SidebarMenuItem>
             <NavLink item={settingsNav} pathname={pathname} tab={tab} onNavigate={closeDrawer} />
@@ -183,20 +183,25 @@ function WorkspaceSwitch() {
   );
 }
 
-function ProCard({ onNavigate }: { onNavigate: () => void }) {
+/** Free accounts see what Pro adds; Pro accounts see their plan and where to manage it. */
+function ProCard({ pro, onNavigate }: { pro: boolean; onNavigate: () => void }) {
   return (
     <div className="rounded-xl bg-primary-subtle p-4 text-primary-subtle-foreground">
       <p className="flex items-center gap-2 text-sm font-semibold">
         <Sparkles className="size-4" aria-hidden="true" />
-        FolioMind Pro
+        {pro ? "You're on FolioMind Pro" : "FolioMind Pro"}
       </p>
-      <p className="mt-1 text-[0.8125rem]/snug">More sources, questions and projects each month.</p>
+      <p className="mt-1 text-[0.8125rem]/snug">
+        {pro
+          ? "Your allowances and invoices are in Billing."
+          : "More sources, questions and projects each month."}
+      </p>
       <Link
-        href="/pricing"
+        href={pro ? "/dashboard/billing" : "/pricing"}
         onClick={onNavigate}
         className="mt-2 inline-block rounded-sm text-[0.8125rem] font-semibold underline underline-offset-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/70"
       >
-        Compare plans
+        {pro ? "Billing and usage" : "Compare plans"}
       </Link>
     </div>
   );
