@@ -154,6 +154,8 @@ jobs:
             -e INNGEST_SIGNING_KEY=signkey-prod-ci \
             -e UPLOADTHING_TOKEN=ci \
             -e JINA_API_KEY=ci \
+            -e STRIPE_SECRET_KEY=sk_test_ci \
+            -e STRIPE_PRO_MONTHLY_PRICE_ID=price_ci \
             foliomind-ingestion:ci
           timeout 60 sh -c 'until docker logs worker-a 2>&1 | grep -q "\"worker booted\""; do sleep 1; done' \
             || { docker logs worker-a; exit 1; }
@@ -190,6 +192,9 @@ jobs:
         run: docker compose -f infra/compose.yaml up -d --wait postgres redis upstash-http inngest
       - name: Migrate, create the runtime role and seed
         run: pnpm db:setup
+      # The catalog journeys expect the sample publisher and books (local databases only).
+      - name: Seed the development sample catalog
+        run: pnpm db:seed:dev
       - name: Build the web app
         run: pnpm --filter web build
       - name: Install Chromium

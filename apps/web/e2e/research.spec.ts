@@ -5,6 +5,7 @@ import {
   createTestUser,
   currentVersionId,
   deleteTestUsers,
+  hasAiKeys,
   hasTestAuth,
   projectSourceCount,
   seedDocument,
@@ -57,6 +58,8 @@ test("chat refuses guests, other origins, bad input and other people's documents
   request,
   playwright,
 }) => {
+  // /api/chat answers 503 (not configured) before access or quota checks without AI keys.
+  test.skip(!hasAiKeys(), "Set GEMINI_API_KEY and JINA_API_KEY in apps/web/.env.local.");
   const owner = await createTestUser();
   created.push(owner.id);
   const { documentId } = await seedDocument(owner.id, "Private to its owner", "ready");
@@ -141,6 +144,8 @@ test("the composer blocks at the Free question limit and explains the allowance"
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "Runs once, at desktop width.");
+  // /api/chat answers 503 (not configured) before access or quota checks without AI keys.
+  test.skip(!hasAiKeys(), "Set GEMINI_API_KEY and JINA_API_KEY in apps/web/.env.local.");
   const user = await signedInUser(context);
   const { documentId } = await seedDocument(user.id, "Allowance document", "ready");
   await useUpQuestions(user.id, 30);

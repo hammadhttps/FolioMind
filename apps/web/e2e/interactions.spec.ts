@@ -51,6 +51,10 @@ test("the sign-in dialog sends Google and GitHub straight to their connections",
       expect(target).toMatch(/connection=(google-oauth2|github)/);
   }
 
+  // Measure after the dialog's zoom-in animation, which scales everything below 100 %.
+  await dialog.evaluate((element) =>
+    Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+  );
   for (const control of [
     dialog.getByRole("link", { name: /Continue with Google/ }),
     dialog.getByRole("link", { name: /Continue with GitHub/ }),
