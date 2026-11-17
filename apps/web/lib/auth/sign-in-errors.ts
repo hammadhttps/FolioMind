@@ -10,7 +10,7 @@ export const SIGN_IN_ERRORS = {
   no_email:
     "We couldn't get an email address from that account. Add one to it, or continue with another method.",
   suspended: "This account is suspended, so you can't sign in right now.",
-  deleted: "This account is being deleted and can no longer sign in.",
+  deleted: "This account has been deleted. Its files and data are being removed.",
 } as const;
 
 export type SignInErrorCode = keyof typeof SIGN_IN_ERRORS;

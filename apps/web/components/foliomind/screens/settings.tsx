@@ -10,7 +10,7 @@ import {
   type ProfileFormValues,
   type SignInProvider,
 } from "@foliomind/contracts";
-import { Link2, LogOut, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { Link2, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -49,7 +49,7 @@ import { IDENTITY_SUCCESS_CODES, identityMessage } from "@/lib/account/identity-
 import { loginHref } from "@/lib/auth/return-to";
 import { useUploadThing } from "@/lib/uploadthing";
 import { handleRateLimitResponse, showRateLimitToast } from "@/lib/rate-limit-toast";
-import { ComingSoonButton } from "../coming-soon";
+import { DeleteAccountDialog } from "../settings/delete-account-dialog";
 import { PageHeading } from "../page-heading";
 import { Panel } from "../panel";
 import { useIsPreview, useSessionUser } from "../session-user";
@@ -76,7 +76,13 @@ export interface SignInMethodView {
 export function SettingsScreen({
   methods,
   identityResult,
-  notificationPreferences = { documents: true, projects: true, publishing: true, following: true },
+  notificationPreferences = {
+    documents: true,
+    projects: true,
+    publishing: true,
+    following: true,
+    billing: true,
+  },
 }: {
   methods: SignInMethodView[];
   /** `?identity=` outcome from the link callback or a reauthentication. */
@@ -84,6 +90,10 @@ export function SettingsScreen({
   notificationPreferences?: NotificationPreferences;
 }) {
   const user = useSessionUser();
+  const primaryConnection = methods.find((method) => method.primary)?.provider;
+  const reauthHref = primaryConnection
+    ? loginHref({ connection: primaryConnection, returnTo: "/dashboard/settings", prompt: "login" })
+    : null;
   return (
     <div className="space-y-6">
       <PageHeading
@@ -145,13 +155,10 @@ export function SettingsScreen({
             <div>
               <p className="font-semibold text-error">Delete account</p>
               <p className="text-sm text-foreground/80">
-                Permanently remove your account and private files.
+                Permanently remove your account, files and projects, and cancel Pro.
               </p>
             </div>
-            <ComingSoonButton variant="destructive" reason="Account deletion opens soon">
-              <Trash2 aria-hidden="true" />
-              Delete account
-            </ComingSoonButton>
+            <DeleteAccountDialog reauthHref={reauthHref} />
           </div>
         </Panel>
       </div>
