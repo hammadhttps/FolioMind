@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LegalPage } from "@/components/foliomind/legal-page";
 
 export const metadata: Metadata = { title: "Privacy" };
@@ -36,7 +37,12 @@ export default function PrivacyPage() {
       <section className="space-y-2">
         <h2>Your choices</h2>
         <p>
-          You can delete documents at any time and request deletion of your account from Settings.
+          You can delete documents at any time and delete your account from Settings. What is
+          removed, and the few records kept without your name or email, are listed in{" "}
+          <Link href="/privacy/retention" className="text-link underline underline-offset-4">
+            Data retention
+          </Link>
+          .
         </p>
       </section>
     </LegalPage>
