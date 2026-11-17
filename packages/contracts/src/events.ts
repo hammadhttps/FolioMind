@@ -19,6 +19,7 @@ export const EVENT_NAMES = {
   projectExportRequested: "project/export.requested",
   projectGenerationCancelled: "project/generation.cancelled",
   catalogBookPublished: "catalog/book.published",
+  billingStripeWebhookRecorded: "billing/stripe-webhook.recorded",
 } as const;
 
 export type EventName = (typeof EVENT_NAMES)[keyof typeof EVENT_NAMES];
@@ -126,6 +127,21 @@ export const catalogBookPublishedData = z.object({
 export type CatalogBookPublishedData = z.infer<typeof catalogBookPublishedData>;
 
 /**
+ * A verified Stripe webhook was recorded (Section 10 "Webhook endpoint"). Worker
+ * A's sync-stripe fetches the current Stripe objects for the customer; the
+ * event's own payload is never trusted for state.
+ */
+export const billingStripeWebhookRecordedData = z.object({
+  eventId: z.string().min(1).max(255),
+  eventType: z.string().min(1).max(100),
+  /** The Stripe object the event is about (session, subscription or invoice). */
+  objectId: z.string().max(255).nullable(),
+  customerId: z.string().max(255).nullable(),
+  operationKey: z.string().min(1).max(300),
+});
+export type BillingStripeWebhookRecordedData = z.infer<typeof billingStripeWebhookRecordedData>;
+
+/**
  * Payload schema per event name. The outbox validates against it before a row
  * is written, so only well-formed events are ever queued for delivery.
  */
@@ -141,6 +157,7 @@ export const EVENT_SCHEMAS = {
   [EVENT_NAMES.projectExportRequested]: projectExportRequestedData,
   [EVENT_NAMES.projectGenerationCancelled]: projectGenerationCancelledData,
   [EVENT_NAMES.catalogBookPublished]: catalogBookPublishedData,
+  [EVENT_NAMES.billingStripeWebhookRecorded]: billingStripeWebhookRecordedData,
 } as const satisfies Record<EventName, z.ZodType>;
 
 export type EventData<TName extends EventName> = z.infer<(typeof EVENT_SCHEMAS)[TName]>;

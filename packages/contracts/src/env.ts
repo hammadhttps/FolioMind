@@ -123,6 +123,11 @@ export const backgroundJobsShape = {
     .string()
     .regex(/^(TZ=\S+ )?(\S+ ){4}\S+$/, "a five-field cron expression")
     .default("0 * * * *"),
+  /** reconcile-billing (Section 9: hourly). Same minute as the outbox, so Neon wakes once. */
+  BILLING_RECONCILE_CRON: z
+    .string()
+    .regex(/^(TZ=\S+ )?(\S+ ){4}\S+$/, "a five-field cron expression")
+    .default("0 * * * *"),
   /**
    * "1" lets cleanup delete stored files no asset row knows about. Only safe
    * when this environment has its own UploadThing app (Section 25).
@@ -162,17 +167,18 @@ export const stripeSecretShape = {
     .optional(),
 };
 
-export const stripeWebShape = {
-  ...stripeSecretShape,
-  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
-  /** Created in Phase 10. */
+/** The Pro price, allowlisted on the server (Section 10). Worker A needs it to map subscriptions. */
+export const stripePriceShape = {
   STRIPE_PRO_MONTHLY_PRICE_ID: z.string().startsWith("price_").optional(),
 };
 
-/**
- * Variables each deployable needs once APP_ENV is staging or production.
- * STRIPE_WEBHOOK_SECRET joins the web list in Phase 10 with the webhook route.
- */
+export const stripeWebShape = {
+  ...stripeSecretShape,
+  ...stripePriceShape,
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+};
+
+/** Variables each deployable needs once APP_ENV is staging or production. */
 export const PRODUCTION_REQUIRED = {
   web: [
     "AUTH0_DOMAIN",
@@ -188,13 +194,17 @@ export const PRODUCTION_REQUIRED = {
     "JINA_API_KEY",
     "GEMINI_API_KEY",
     "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PRO_MONTHLY_PRICE_ID",
   ],
-  // STRIPE_SECRET_KEY joins in Phase 10 with sync-stripe and reconcile-billing.
+  // Worker A runs sync-stripe and reconcile-billing (Section 9).
   workerIngestion: [
     "INNGEST_EVENT_KEY",
     "INNGEST_SIGNING_KEY",
     "UPLOADTHING_TOKEN",
     "JINA_API_KEY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PRO_MONTHLY_PRICE_ID",
   ],
   workerGeneration: [
     "INNGEST_EVENT_KEY",

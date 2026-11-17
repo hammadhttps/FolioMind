@@ -21,6 +21,8 @@ export const NOTIFICATION_TYPES = [
   "submission_rejected",
   "book_taken_down",
   "publisher_new_book",
+  "payment_failed",
+  "payment_action_required",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const notificationTypeSchema = z.enum(NOTIFICATION_TYPES);
@@ -57,6 +59,11 @@ export const NOTIFICATION_PREFERENCES = {
     description: "When a publisher you follow shares a new or updated book.",
     types: ["publisher_new_book"],
   },
+  billing: {
+    label: "Billing",
+    description: "When a payment for FolioMind Pro fails or needs you to confirm it.",
+    types: ["payment_failed", "payment_action_required"],
+  },
 } as const satisfies Record<
   string,
   { label: string; description: string; types: NotificationType[] }
@@ -75,6 +82,7 @@ export const notificationPreferencesSchema = z.object({
   projects: z.boolean(),
   publishing: z.boolean(),
   following: z.boolean(),
+  billing: z.boolean(),
 });
 export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 
@@ -87,6 +95,7 @@ export function readNotificationPreferences(
     projects: stored?.projects !== false,
     publishing: stored?.publishing !== false,
     following: stored?.following !== false,
+    billing: stored?.billing !== false,
   };
 }
 
