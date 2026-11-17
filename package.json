@@ -29,6 +29,8 @@
     "check:route-trace": "tsx scripts/check-route-trace.ts",
     "eval:retrieval": "tsx scripts/eval-retrieval.ts",
     "promote-admin": "tsx scripts/promote-admin.ts",
+    "smoke": "tsx scripts/smoke.ts",
+    "stripe:setup": "tsx scripts/stripe-setup.ts",
     "requeue-ingestion": "tsx scripts/requeue-ingestion.ts"
   },
   "devDependencies": {

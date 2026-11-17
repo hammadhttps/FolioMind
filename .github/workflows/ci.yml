@@ -1,6 +1,8 @@
-# Blueprint Section 14 so far: verify, local service checks, migrations with
-# integration tests, and image builds. Later phases add end-to-end and
-# deployment jobs; Phase 10 pins actions to commit SHAs.
+# Blueprint Section 14: verify, local service checks, migrations with
+# integration tests, image builds and end-to-end journeys on every pull request
+# and push. On main, once the repository is set up for it (see
+# docs/operations/deployment.md), the gated deploy job migrates Neon, deploys
+# to Vercel and runs the smoke checks. Actions are pinned to commit SHAs.
 name: CI
 
 on:
@@ -10,7 +12,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run on main: it may be migrating or deploying.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -23,9 +26,9 @@ jobs:
     env:
       SKIP_ENV_VALIDATION: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -47,9 +50,9 @@ jobs:
       BROWSERLESS_WS_ENDPOINT: ws://localhost:3001
       BROWSERLESS_TOKEN: foliomind-local-dev-token
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -78,9 +81,9 @@ jobs:
       DATABASE_RUNTIME_PASSWORD: ci-runtime-password
       REQUIRE_TEST_SERVICES: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -124,9 +127,9 @@ jobs:
       matrix:
         image: [web, ingestion, generation, migrate]
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/docker/Dockerfile.${{ matrix.image }}
@@ -157,3 +160,100 @@ jobs:
           docker stop --time 10 worker-a
           docker logs worker-a
           test "$(docker inspect worker-a --format '{{.State.ExitCode}}')" = "0"
+
+  e2e:
+    name: End-to-end journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # The production build against the Compose stack. Sessions are minted
+    # locally (apps/web/e2e/auth.ts), so no Auth0 tenant is involved; journeys
+    # that need provider keys or a connected worker skip with a reason.
+    env:
+      CI: "true"
+      DIRECT_DATABASE_URL: postgres://foliomind:foliomind@localhost:5433/foliomind
+      DATABASE_URL: postgres://foliomind_app:foliomind_app@localhost:5433/foliomind
+      UPSTASH_REDIS_REST_URL: http://localhost:8079
+      UPSTASH_REDIS_REST_TOKEN: foliomind-local-dev-token
+      RATE_LIMIT_IP_SECRET: ci-e2e-rate-limit-secret-0123456789
+      INNGEST_DEV: "1"
+      INNGEST_BASE_URL: http://localhost:8288
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start Postgres, Redis, the Upstash proxy and the Inngest Dev Server
+        run: docker compose -f infra/compose.yaml up -d --wait postgres redis upstash-http inngest
+      - name: Migrate, create the runtime role and seed
+        run: pnpm db:setup
+      - name: Build the web app
+        run: pnpm --filter web build
+      - name: Install Chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
+      - name: Run the journeys
+        run: pnpm e2e
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+      - name: Service logs
+        if: failure()
+        run: docker compose -f infra/compose.yaml logs --tail=100
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f infra/compose.yaml down -v
+
+  deploy:
+    name: Migrate, deploy and smoke-test production
+    # Off until the repository variable CI_DEPLOY is "true" and the secrets in
+    # docs/operations/deployment.md exist. Every gate above must pass first.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CI_DEPLOY == 'true'
+    needs: [verify, services, integration, docker, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Section 3: migrations run once, here, with the migration role; never
+      # from app replicas. Expand/migrate/contract keeps the old code working.
+      - name: Apply migrations to Neon
+        env:
+          DIRECT_DATABASE_URL: ${{ secrets.NEON_DIRECT_DATABASE_URL }}
+        run: pnpm db:migrate
+      - name: Build for Vercel production
+        run: |
+          pnpm dlx vercel@65.9.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+          pnpm dlx vercel@65.9.0 build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy the prebuilt output
+        id: deploy
+        run: |
+          url=$(pnpm dlx vercel@65.9.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Register the new Inngest functions
+        run: curl -fsS -X PUT "${{ vars.PRODUCTION_URL }}/api/inngest"
+      - name: Smoke checks
+        run: pnpm smoke -- "${{ vars.PRODUCTION_URL }}"

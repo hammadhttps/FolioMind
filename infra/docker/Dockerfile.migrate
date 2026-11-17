@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 # One-shot database setup (blueprint Sections 3 and 13): apply migrations, apply
 # the runtime role's grants and upsert the required seed rows. Runs once per
 # deployment, never from every replica. Build from the repository root:
@@ -6,7 +6,8 @@
 # Needs DIRECT_DATABASE_URL (migration role) and, to create the runtime role,
 # DATABASE_RUNTIME_PASSWORD.
 
-ARG NODE_IMAGE=node:24.11.0-bookworm-slim
+# Pinned by digest (multi-arch index); update the tag and digest together.
+ARG NODE_IMAGE=node:24.11.0-bookworm-slim@sha256:76d0ed0ed93bed4f4376211e9d8fddac4d8b3fbdb54cc45955696001a3c91152
 ARG TURBO_VERSION=2.11.10
 
 FROM ${NODE_IMAGE} AS base

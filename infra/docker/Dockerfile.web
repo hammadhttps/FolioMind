@@ -1,9 +1,10 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
 # FolioMind web app (Next.js standalone). Build from the repository root:
 #   docker build -f infra/docker/Dockerfile.web -t foliomind-web .
 # Production runs on Vercel; this image is for local/portable use (Section 13).
 
-ARG NODE_IMAGE=node:24.11.0-bookworm-slim
+# Pinned by digest (multi-arch index); update the tag and digest together.
+ARG NODE_IMAGE=node:24.11.0-bookworm-slim@sha256:76d0ed0ed93bed4f4376211e9d8fddac4d8b3fbdb54cc45955696001a3c91152
 ARG TURBO_VERSION=2.11.10
 
 FROM ${NODE_IMAGE} AS base
