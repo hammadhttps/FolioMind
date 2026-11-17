@@ -32,6 +32,7 @@ interface Template {
 
 const ATTENTION_PATH = "/dashboard/library?status=attention";
 const PUBLISHING_PATH = "/dashboard/publishing";
+const BILLING_PATH = "/dashboard/billing";
 
 const TEMPLATES: Record<NotificationType, Template> = {
   document_ready: {
@@ -105,6 +106,16 @@ const TEMPLATES: Record<NotificationType, Template> = {
       `“${title}” was removed from the library by moderation. Open Publishing to read why.`,
     path: ({ bookId }) => `${PUBLISHING_PATH}?book=${bookId}`,
   },
+  payment_failed: {
+    title: "A payment for FolioMind Pro didn't go through.",
+    body: () => "Update your payment method in Billing to keep Pro after your paid period ends.",
+    path: () => BILLING_PATH,
+  },
+  payment_action_required: {
+    title: "Confirm your FolioMind Pro payment.",
+    body: () => "Your bank needs you to confirm the payment. Open Billing to finish it.",
+    path: () => BILLING_PATH,
+  },
   publisher_new_book: {
     title: "New from a publisher you follow.",
     body: ({ title, publisherName }) => `${publisherName ?? "A publisher"} published “${title}”.`,
@@ -156,6 +167,12 @@ async function subjectFor(
     return revision
       ? { id: input.subjectId, title: revision.title, bookId: revision.book_id }
       : null;
+  }
+  if (input.type === "payment_failed" || input.type === "payment_action_required") {
+    // The subject is the user's own local subscription row.
+    const [subscription] = await db.execute<{ id: string }>(sql`
+      select id from subscriptions where id = ${input.subjectId} and user_id = ${input.userId}`);
+    return subscription ? { id: input.subjectId, title: "FolioMind Pro" } : null;
   }
   if (input.type === "publisher_new_book") {
     const [revision] = await db.execute<{ title: string; book_id: string; publisher: string }>(sql`
