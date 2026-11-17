@@ -10,7 +10,7 @@ import {
   setStatus,
   signInAs,
 } from "./auth";
-import { expectNoHorizontalOverflow, watchConsole } from "./helpers";
+import { expectNoHorizontalOverflow, newClient, watchConsole } from "./helpers";
 
 /*
  * Phase 4 identity flows with a real local account and a minted session
@@ -74,7 +74,7 @@ test("display name and theme are saved to the account", async ({ browser, contex
   await expect(page.locator("html")).toHaveClass(/dark/);
 
   // A fresh browser has no stored theme: the account's preference applies.
-  const other = await browser.newContext();
+  const other = await newClient(browser);
   await signInAs(other, user);
   const otherPage = await other.newPage();
   await otherPage.goto("/dashboard");

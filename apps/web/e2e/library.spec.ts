@@ -7,7 +7,7 @@ import {
   seedDocument,
   signInAs,
 } from "./auth";
-import { expectNoHorizontalOverflow, watchConsole } from "./helpers";
+import { expectNoHorizontalOverflow, newClient, watchConsole } from "./helpers";
 
 /*
  * My Library and document access (Phase 5) with seeded documents. Reading real
@@ -161,7 +161,7 @@ test("another user cannot open a document or its access URL", async ({
 
   const stranger = await createTestUser();
   created.push(stranger.id);
-  const other = await browser.newContext();
+  const other = await newClient(browser);
   await signInAs(other, stranger);
   const otherPage = await other.newPage();
   expect((await otherPage.request.get(`/api/documents/${rivers.documentId}/access`)).status()).toBe(
@@ -178,7 +178,7 @@ test("another user cannot open a document or its access URL", async ({
   await other.close();
 
   // Signed out: no access URL at all.
-  const guest = await browser.newContext();
+  const guest = await newClient(browser);
   expect((await guest.request.get(`/api/documents/${rivers.documentId}/access`)).status()).toBe(
     401,
   );

@@ -13,6 +13,7 @@ const PUBLIC_ROUTES = [
   { path: "/library", heading: "A world of ideas, within reach." },
   { path: "/pricing", heading: "Plans for every kind of reader." },
   { path: "/privacy", heading: "Privacy Policy" },
+  { path: "/privacy/retention", heading: "Data retention" },
   { path: "/terms", heading: "Terms of Use" },
   { path: "/login", heading: "Welcome to FolioMind" },
 ] as const;
@@ -138,7 +139,8 @@ test.describe("signed-in routes", () => {
 
   for (const path of SIGNED_IN_ROUTES) {
     test(`${path} renders in the workspace shell`, async ({ page }) => {
-      const errors = watchConsole(page);
+      // The example-* paths are unknown IDs: the not-found page inside the shell.
+      const errors = watchConsole(page, { allowNotFound: path.includes("/example-") });
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expectNoHorizontalOverflow(page);
@@ -148,6 +150,11 @@ test.describe("signed-in routes", () => {
 });
 
 test.describe("development gallery", () => {
+  // One worker, in order: the dev server's first parallel compiles of the
+  // `[slug]` preview route can fail with "Unexpected end of JSON input"
+  // (a Turbopack race; warm requests always pass). A failure doesn't stop the rest.
+  test.describe.configure({ mode: "default" });
+
   test("/dev/ui is not available in production builds", async ({ request }) => {
     test.skip(!isProductionServer, "Runs against the production server in CI.");
     expect((await request.get("/dev/ui")).status()).toBe(404);

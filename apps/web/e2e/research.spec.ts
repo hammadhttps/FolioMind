@@ -11,7 +11,7 @@ import {
   signInAs,
   useUpQuestions,
 } from "./auth";
-import { expectNoHorizontalOverflow } from "./helpers";
+import { expectNoHorizontalOverflow, newClient } from "./helpers";
 
 /*
  * Phase 7 without AI providers: the Research Workspace itself, the plan's source
@@ -128,7 +128,7 @@ test("chat answers Section 23's 429 past 10 questions a minute, for that user on
   expect((await limited.json()).error.code).toBe("rate_limited");
 
   // Someone else isn't affected.
-  const otherContext = await browser.newContext();
+  const otherContext = await newClient(browser);
   const other = await createTestUser();
   created.push(other.id);
   await signInAs(otherContext, other);
@@ -321,7 +321,7 @@ test("another user's workspace and a made-up one look the same", async ({
   await createWorkspace(page, "Mine alone");
   const address = page.url();
 
-  const otherContext = await browser.newContext();
+  const otherContext = await newClient(browser);
   const stranger = await createTestUser();
   created.push(stranger.id);
   await signInAs(otherContext, stranger);

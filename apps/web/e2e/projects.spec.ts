@@ -14,7 +14,7 @@ import {
   signInAs,
   softDeleteDocument,
 } from "./auth";
-import { expectNoHorizontalOverflow, watchConsole } from "./helpers";
+import { expectNoHorizontalOverflow, newClient, watchConsole } from "./helpers";
 
 /*
  * My Projects and PDF Studio with seeded projects: no AI provider or worker is
@@ -295,7 +295,7 @@ test("another user can't open a project or reach any of its routes", async ({
   ).toBe(404);
 
   // Guests get 401, and a mutation from another origin gets 403.
-  const guest = await browser.newContext({ baseURL: "http://localhost:3000" });
+  const guest = await newClient(browser, { baseURL: "http://localhost:3000" });
   expect((await guest.request.get(`/api/projects/${projectId}`)).status()).toBe(401);
   expect((await guest.request.get(`/api/projects/${projectId}/preview`)).status()).toBe(401);
   await guest.close();

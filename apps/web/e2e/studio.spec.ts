@@ -13,6 +13,7 @@ import {
   uploadThingToken,
 } from "./auth";
 
+import { newClient } from "./helpers";
 /*
  * Phase 8 end to end, with nothing faked: a real PDF through UploadThing and
  * Worker A, then real Jina, real Gemini and real Chromium through Worker B, and
@@ -240,7 +241,7 @@ test("workspace → outline → edit → approve → draft → revision → decl
 
 test("another user can't open the project or download its export", async ({ browser }) => {
   test.skip(!studioUrl || !exportUrl, "Needs the export from the previous test.");
-  const context = await browser.newContext({ baseURL: "http://localhost:3000" });
+  const context = await newClient(browser, { baseURL: "http://localhost:3000" });
   await signedIn(context);
   const page = await context.newPage();
   await page.goto(studioUrl);
@@ -248,7 +249,7 @@ test("another user can't open the project or download its export", async ({ brow
   expect((await context.request.get(exportUrl)).status()).toBe(404);
   await context.close();
 
-  const guest = await browser.newContext({ baseURL: "http://localhost:3000" });
+  const guest = await newClient(browser, { baseURL: "http://localhost:3000" });
   expect((await guest.request.get(exportUrl)).status()).toBe(401);
   await guest.close();
 });

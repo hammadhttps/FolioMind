@@ -13,6 +13,7 @@ import {
   uploadThingToken,
 } from "./auth";
 
+import { newClient } from "./helpers";
 /*
  * The real book path (Section 25 `bookSourcePdf` and `coverImage`): a
  * publisher uploads a PDF and a cover through UploadThing, Worker A ingests
@@ -56,7 +57,7 @@ test("a publisher uploads a real PDF and cover; once approved a reader opens it"
   await seedPublisher(publisher.id, { slug: `upload-${tag}`, name: `Upload Press ${tag}` });
   await setRole(admin.id, "admin");
 
-  const publisherContext = await browser.newContext();
+  const publisherContext = await newClient(browser);
   await signInAs(publisherContext, publisher);
   const page = await publisherContext.newPage();
   await page.goto("/dashboard/publishing");
@@ -95,7 +96,7 @@ test("a publisher uploads a real PDF and cover; once approved a reader opens it"
   const bookId = new URL(page.url()).searchParams.get("book")!;
 
   // The admin opens the submitted PDF through the moderation route, then approves.
-  const adminContext = await browser.newContext();
+  const adminContext = await newClient(browser);
   await signInAs(adminContext, admin);
   const moderator = await adminContext.newPage();
   await moderator.goto("/admin/moderation");
@@ -117,7 +118,7 @@ test("a publisher uploads a real PDF and cover; once approved a reader opens it"
   await expect(moderator.getByText("Approved. It's live in the library.")).toBeVisible();
 
   // Readers can't open the moderation route.
-  const readerContext = await browser.newContext();
+  const readerContext = await newClient(browser);
   await signInAs(readerContext, reader);
   const readerPage = await readerContext.newPage();
   expect((await readerPage.request.get(href!)).status()).toBe(403);

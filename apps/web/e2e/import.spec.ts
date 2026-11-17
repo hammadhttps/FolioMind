@@ -9,6 +9,7 @@ import {
   uploadThingToken,
 } from "./auth";
 
+import { newClient } from "./helpers";
 /*
  * Web article import (Section 27). The address rules are checked on the
  * server whatever the browser sends; a real import (Jina Reader → Browserless
@@ -44,7 +45,7 @@ test("the server refuses local, private and FolioMind addresses", async ({ brows
   ];
   // The import route allows 5 requests per 10 minutes per user, refused ones included.
   for (let start = 0; start < cases.length; start += 4) {
-    const context = await browser.newContext();
+    const context = await newClient(browser);
     const user = await createTestUser();
     created.push(user.id);
     await signInAs(context, user);

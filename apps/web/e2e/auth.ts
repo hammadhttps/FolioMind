@@ -24,7 +24,7 @@ import {
   renumberCitations,
   stampDraftedCitations,
 } from "@foliomind/contracts";
-import { signIn, type UserSnapshot } from "@foliomind/domain";
+import { effectivePlanCode, signIn, type UserSnapshot } from "@foliomind/domain";
 import type { APIRequestContext, BrowserContext } from "@playwright/test";
 import { eq, sql } from "drizzle-orm";
 import { E2E_AUTH0 } from "./auth-config";
@@ -74,9 +74,16 @@ export async function createTestUser(): Promise<TestUser> {
   return { ...outcome.user, firstName: first };
 }
 
-/** Puts a session for `user` into the browser context, as the Auth0 callback would. */
-export async function signInAs(context: BrowserContext, user: UserSnapshot): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
+/**
+ * Puts a session for `user` into the browser context, as the Auth0 callback would.
+ * `signedInAt` backdates the sign-in, for actions that need a recent one.
+ */
+export async function signInAs(
+  context: BrowserContext,
+  user: UserSnapshot,
+  options: { signedInAt?: Date } = {},
+): Promise<void> {
+  const now = Math.floor((options.signedInAt?.getTime() ?? Date.now()) / 1000);
   const value = await generateSessionCookie(
     {
       user: {
@@ -108,12 +115,30 @@ export async function setStatus(userId: string, status: "active" | "suspended") 
   await db().update(users).set({ status }).where(eq(users.id, userId));
 }
 
+/** An account's status and whether one of its projects is still visible, after deletion. */
+export async function accountState(userId: string, projectId: string) {
+  const [user] = await db()
+    .select({ status: users.status })
+    .from(users)
+    .where(eq(users.id, userId));
+  const [project] = await db()
+    .select({ deletedAt: projects.deletedAt })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  return { status: user?.status, projectDeleted: Boolean(project?.deletedAt) };
+}
+
 /** The page the reader last saved for a user's document, if any. */
 export async function savedPage(userId: string): Promise<number | null> {
   const [row] = await db().execute<{ page_number: number }>(
     sql`select page_number from reading_progress where user_id = ${userId} order by last_read_at desc limit 1`,
   );
   return row ? Number(row.page_number) : null;
+}
+
+/** Sets the theme a signed-in user's pages load with. */
+export async function setSavedTheme(userId: string, theme: "light" | "dark") {
+  await db().update(userPreferences).set({ theme }).where(eq(userPreferences.userId, userId));
 }
 
 export async function savedTheme(userId: string) {
@@ -130,6 +155,55 @@ export function uploadThingToken(): string | undefined {
   if (process.env.UPLOADTHING_TOKEN) return process.env.UPLOADTHING_TOKEN;
   if (!existsSync(file)) return undefined;
   return parseEnv(readFileSync(file, "utf8")).UPLOADTHING_TOKEN || undefined;
+}
+
+/** The local Stripe test key from apps/web/.env.local, if set (never printed). */
+export function stripeTestKey(): string | undefined {
+  const file = path.resolve(__dirname, "../.env.local");
+  const value =
+    process.env.STRIPE_SECRET_KEY ||
+    (existsSync(file) ? parseEnv(readFileSync(file, "utf8")).STRIPE_SECRET_KEY : undefined);
+  return value && /^(sk|rk)_test_/.test(value) ? value : undefined;
+}
+
+/** The local Pro price ID from apps/web/.env.local, if set. */
+export function stripePriceId(): string | undefined {
+  const file = path.resolve(__dirname, "../.env.local");
+  return (
+    process.env.STRIPE_PRO_MONTHLY_PRICE_ID ||
+    (existsSync(file)
+      ? parseEnv(readFileSync(file, "utf8")).STRIPE_PRO_MONTHLY_PRICE_ID
+      : undefined) ||
+    undefined
+  );
+}
+
+/** The plan a user has right now, by the same rule the app uses. */
+export async function planOf(userId: string): Promise<"free" | "pro"> {
+  return (await effectivePlanCode(db(), userId)) as "free" | "pro";
+}
+
+/** The user's latest synced subscription and Stripe customer, if any. */
+export async function billingOf(userId: string) {
+  const [row] = await db().execute<{
+    subscription_id: string | null;
+    status: string | null;
+    cancel_at_period_end: boolean | null;
+    customer_id: string | null;
+  }>(sql`
+    select s.stripe_subscription_id as subscription_id, s.status, s.cancel_at_period_end,
+      c.stripe_customer_id as customer_id
+    from users u
+    left join billing_customers c on c.user_id = u.id
+    left join lateral (select * from subscriptions where user_id = u.id
+      order by period_end desc limit 1) s on true
+    where u.id = ${userId}`);
+  return {
+    subscriptionId: row?.subscription_id ?? null,
+    status: row?.status ?? null,
+    cancelAtPeriodEnd: row?.cancel_at_period_end ?? null,
+    customerId: row?.customer_id ?? null,
+  };
 }
 
 /** Removes test users and everything they own, children first, and their stored files. */
@@ -167,6 +241,13 @@ export async function deleteTestUsers(ids: readonly string[]) {
         sql`delete from usage_operations where bucket_id in (select id from usage_buckets where user_id = ${id})`,
       );
       await tx.execute(sql`delete from usage_buckets where user_id = ${id}`);
+      // Billing (Phase 10): invoices, subscriptions, attempts and the customer mapping.
+      await tx.execute(
+        sql`delete from billing_invoices where subscription_id in (select id from subscriptions where user_id = ${id})`,
+      );
+      await tx.execute(sql`delete from subscriptions where user_id = ${id}`);
+      await tx.execute(sql`delete from billing_checkout_attempts where user_id = ${id}`);
+      await tx.execute(sql`delete from billing_customers where user_id = ${id}`);
       await tx.execute(sql`delete from ai_runs where user_id = ${id}`);
       await tx.execute(sql`delete from url_imports where user_id = ${id}`);
       await tx.execute(sql`delete from jobs where owner_id = ${id}`);

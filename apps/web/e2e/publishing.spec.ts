@@ -17,7 +17,7 @@ import {
   signInAs,
   type TestUser,
 } from "./auth";
-import { expectNoHorizontalOverflow, watchConsole } from "./helpers";
+import { expectNoHorizontalOverflow, newClient, watchConsole } from "./helpers";
 
 /*
  * Section 6 "Publishing" end to end: apply, approve, submit, reject with a
@@ -46,7 +46,7 @@ async function newUser(role?: "admin"): Promise<TestUser> {
 }
 
 async function pageAs(browser: Browser, user: TestUser | null): Promise<Page> {
-  const context = await browser.newContext();
+  const context = await newClient(browser);
   if (user) await signInAs(context, user);
   return context.newPage();
 }

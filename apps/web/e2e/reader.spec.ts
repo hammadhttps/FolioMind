@@ -10,6 +10,7 @@ import {
   uploadThingToken,
 } from "./auth";
 
+import { newClient } from "./helpers";
 /*
  * Upload → My Library → Reader with a real file (Phase 5). Needs the local
  * UploadThing token (development mode delivers the completion callback
@@ -159,7 +160,7 @@ test("upload a PDF, read it, annotate it and come back to the same place", async
   const documentId = page.url().split("/read/")[1]!;
   const stranger = await createTestUser();
   created.push(stranger.id);
-  const other = await browser.newContext();
+  const other = await newClient(browser);
   await signInAs(other, stranger);
   expect((await other.request.get(`/api/documents/${documentId}/file`)).status()).toBe(404);
   await other.close();
