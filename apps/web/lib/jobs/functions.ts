@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { createGemini } from "@foliomind/ai";
 import { createJina } from "@foliomind/ai/jina";
-import { cacheKeys, createRedis } from "@foliomind/domain";
+import { cacheKeys, createRedis, createStripe, createStripeGateway } from "@foliomind/domain";
 import { createInngest } from "@foliomind/workflows";
 import {
   createExtractor,
@@ -12,7 +12,9 @@ import {
 } from "@foliomind/workflows/worker-a";
 import { createWorkerBFunctions } from "@foliomind/workflows/worker-b";
 import { appEnv, env } from "@/env";
+import { auth0IdentityAdmin } from "@/lib/auth/identity-admin";
 import { getDb } from "@/lib/clients";
+import { RELEASE } from "@/lib/log";
 
 /*
  * Background functions on Vercel (user decision, 2026-11-04: Vercel is the only
@@ -40,7 +42,15 @@ function appDirectory(): string {
 
 const logLine =
   (level: "info" | "warn" | "error") => (fields: Record<string, unknown>, message?: string) => {
-    console[level](JSON.stringify({ source: "background-functions", level, message, ...fields }));
+    console[level](
+      JSON.stringify({
+        source: "background-functions",
+        level,
+        release: RELEASE,
+        message,
+        ...fields,
+      }),
+    );
   };
 
 export function createBackgroundFunctions() {
@@ -78,6 +88,10 @@ export function createBackgroundFunctions() {
   const logger = { info: logLine("info"), warn: logLine("warn"), error: logLine("error") };
   // The free UploadThing plan has public files only (user decision, Phase 5).
   const fileAcl = "public" as const;
+  const redis = createRedis({
+    url: env.UPSTASH_REDIS_REST_URL,
+    token: env.UPSTASH_REDIS_REST_TOKEN,
+  });
 
   const workerA = createWorkerAFunctions(client, {
     db,
@@ -99,6 +113,17 @@ export function createBackgroundFunctions() {
       ...(env.APP_BASE_URL ? [new URL(env.APP_BASE_URL).hostname] : []),
     ],
     logger,
+    billing:
+      env.STRIPE_SECRET_KEY && env.STRIPE_PRO_MONTHLY_PRICE_ID
+        ? {
+            gateway: createStripeGateway(createStripe(env.STRIPE_SECRET_KEY)),
+            proPriceId: env.STRIPE_PRO_MONTHLY_PRICE_ID,
+          }
+        : null,
+    billingCron: env.BILLING_RECONCILE_CRON,
+    identityAdmin:
+      env.AUTH0_MGMT_CLIENT_ID && env.AUTH0_MGMT_CLIENT_SECRET ? auth0IdentityAdmin : null,
+    cache: { redis, keys: cacheKeys(appEnv) },
   });
   const workerB = createWorkerBFunctions(client, {
     db,
@@ -106,7 +131,7 @@ export function createBackgroundFunctions() {
       ? createGemini({ apiKey: env.GEMINI_API_KEY, timeoutMs: 120_000 })
       : null,
     jina,
-    redis: createRedis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }),
+    redis,
     cacheKeys: cacheKeys(appEnv),
     models: { generation: env.GEMINI_GENERATION_MODEL, fast: env.GEMINI_FAST_MODEL },
     embedding,

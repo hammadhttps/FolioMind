@@ -4,6 +4,7 @@ import { createJina } from "@foliomind/ai/jina";
 import { EnvValidationError } from "@foliomind/contracts";
 import { createDb } from "@foliomind/db";
 import { connect, createInngest } from "@foliomind/workflows";
+import { cacheKeys, createRedis, createStripe, createStripeGateway } from "@foliomind/domain";
 import { createFileStore, createWorkerAFunctions } from "@foliomind/workflows/worker-a";
 import { pino } from "pino";
 import { loadEnv, type WorkerEnv } from "./env";
@@ -25,7 +26,12 @@ try {
   throw error;
 }
 
-const logger = pino({ base: { service: SERVICE, appEnv: env.appEnv }, level: env.LOG_LEVEL });
+// Section 14: every line names the release (the deploy's commit, when the host provides one).
+const release = (process.env.RENDER_GIT_COMMIT || process.env.RELEASE_ID || "local").slice(0, 12);
+const logger = pino({
+  base: { service: SERVICE, appEnv: env.appEnv, release },
+  level: env.LOG_LEVEL,
+});
 
 const inngest = createInngest({
   appId: "foliomind-ingestion",
@@ -78,6 +84,20 @@ const functions = createWorkerAFunctions(inngest, {
   orphanFileSweep: env.ORPHAN_FILE_SWEEP === "1",
   ownHosts,
   logger,
+  billing:
+    env.STRIPE_SECRET_KEY && env.STRIPE_PRO_MONTHLY_PRICE_ID
+      ? {
+          gateway: createStripeGateway(createStripe(env.STRIPE_SECRET_KEY)),
+          proPriceId: env.STRIPE_PRO_MONTHLY_PRICE_ID,
+        }
+      : null,
+  billingCron: env.BILLING_RECONCILE_CRON,
+  // Auth0 identities of deleted accounts are removed by the web app's route in production.
+  identityAdmin: null,
+  cache: {
+    redis: createRedis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }),
+    keys: cacheKeys(env.appEnv),
+  },
 });
 
 logger.info({ functions: functions.length }, "worker booted");

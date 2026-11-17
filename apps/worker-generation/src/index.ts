@@ -26,7 +26,12 @@ try {
   throw error;
 }
 
-const logger = pino({ base: { service: SERVICE, appEnv: env.appEnv }, level: env.LOG_LEVEL });
+// Section 14: every line names the release (the deploy's commit, when the host provides one).
+const release = (process.env.RENDER_GIT_COMMIT || process.env.RELEASE_ID || "local").slice(0, 12);
+const logger = pino({
+  base: { service: SERVICE, appEnv: env.appEnv, release },
+  level: env.LOG_LEVEL,
+});
 
 const inngest = createInngest({
   appId: "foliomind-generation",

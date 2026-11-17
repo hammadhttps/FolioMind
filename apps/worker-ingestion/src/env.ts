@@ -7,6 +7,7 @@ import {
   jinaShape,
   parseEnv,
   PRODUCTION_REQUIRED,
+  stripePriceShape,
   stripeSecretShape,
   upstashShape,
   uploadthingShape,
@@ -23,6 +24,7 @@ const schema = z.object({
   ...browserlessShape,
   ...jinaShape,
   ...stripeSecretShape,
+  ...stripePriceShape,
   ...backgroundJobsShape,
   /** The web app's address, so imports of FolioMind's own pages are refused. */
   APP_BASE_URL: z.url().optional(),
